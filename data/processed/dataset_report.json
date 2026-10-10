@@ -1,0 +1,45 @@
+{
+  "dataset_name": "ATP Match Charting Project (Jeff Sackmann)",
+  "raw_size_mb": 117.0,
+  "processed_size_mb": 12.17,
+  "total_raw_records": 1170566,
+  "match_count": 7565,
+  "point_count": 904128,
+  "overview_rows": 15090,
+  "serve_rows": 15088,
+  "season_coverage": {
+    "min_year": 1969,
+    "max_year": 2026,
+    "total_seasons": 58
+  },
+  "surfaces": {
+    "Hard": 4851,
+    "Clay": 1877,
+    "Grass": 837
+  },
+  "data_cleaning_metrics": {
+    "matches_duplicates_removed": 1,
+    "points_duplicates_removed": 579,
+    "overview_duplicates_removed": 26
+  },
+  "missing_value_statistics": {
+    "matches": {
+      "match_id": 0,
+      "Player 1": 0,
+      "Player 2": 0,
+      "Pl 1 hand": 32,
+      "Pl 2 hand": 32,
+      "Date": 0,
+      "Tournament": 0,
+      "Round": 1,
+      "Time": 3471,
+      "Court": 1956,
+      "Surface": 0,
+      "Umpire": 3003,
+      "Best of": 0,
+      "Final TB?": 41,
+      "Charted by": 2,
+      "Year": 0
+    }
+  }
+}

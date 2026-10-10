@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RallyIQ: Big Data Tennis Intelligence Platform</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand-wrapper">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#070c18" stroke-width="2" fill="none"/><path d="M4.93 4.93c4.24 4.24 4.24 11.1 0 15.34M19.07 4.93c-4.24 4.24-4.24 11.1 0 15.34" stroke="#070c18" stroke-width="2"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>RallyIQ</h1>
+        <p>Big Data Tennis Intelligence Platform</p>
+      </div>
+    </div>
+    <div class="system-status-pills">
+      <div class="status-pill"><span class="status-dot"></span><span>PySpark Distributed Engine</span></div>
+      <div class="status-pill"><span class="status-dot"></span><span id="mongo-engine-status">MongoDB Document Store</span></div>
+      <div class="status-pill"><span>ATP Match Charting Project</span></div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" data-tab="overview">📊 System Overview</button>
+    <button class="tab-btn" data-tab="player-lab">🧬 Player Intelligence Lab</button>
+    <button class="tab-btn" data-tab="momentum">⚡ Match Momentum</button>
+    <button class="tab-btn" data-tab="serve-strategy">🎾 Serve Strategy</button>
+    <button class="tab-btn" data-tab="recommender">🎯 Playstyle Recommender</button>
+    <button class="tab-btn" data-tab="rivalry-network">🌐 Rivalry Network</button>
+    <button class="tab-btn" data-tab="stream-integrity">🌊 Stream Integrity</button>
+  </nav>
+
+  <!-- Main Content Container -->
+  <main>
+
+    <!-- ===================================================================
+         1. SYSTEM OVERVIEW
+         =================================================================== -->
+    <section id="overview" class="view-section active">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Big Data Tennis Intelligence Architecture</h2>
+          <p class="section-desc">Real historical ATP men's tennis data processed via PySpark, MongoDB, DGIM sliding windows, and Bloom filtering.</p>
+        </div>
+      </div>
+
+      <!-- Dataset KPIs -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="card kpi-card">
+          <div class="kpi-label">Raw Dataset Size</div>
+          <div class="kpi-value" id="kpi-raw-size">117.00 MB</div>
+          <div class="kpi-sub">✓ Target: 50–100+ MB Authentic Data</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Point-by-Point Records</div>
+          <div class="kpi-value" id="kpi-points">904,128</div>
+          <div class="kpi-sub">Sequential match events with shot codes</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">ATP Matches Charted</div>
+          <div class="kpi-value" id="kpi-matches">7,565</div>
+          <div class="kpi-sub">Verified Grand Slams & Masters 1000</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Era & Season Coverage</div>
+          <div class="kpi-value" id="kpi-seasons" style="font-size: 1.5rem;">58 Seasons (1969–2026)</div>
+          <div class="kpi-sub">Open Era to Current ATP Tour</div>
+        </div>
+      </div>
+
+      <!-- Architecture & Surfaces -->
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <h3 class="card-title">Pipeline Architecture</h3>
+          <div style="font-size: 0.85rem; line-height: 1.7; color: var(--text-secondary);">
+            <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--cyan-primary);">
+              <strong style="color:var(--cyan-primary);">1. Data Ingestion & Schema Validation:</strong> Real Match Charting Project datasets downloaded directly from Jeff Sackmann's repository. Deduplication, type validation, and missing value profiling.
+            </div>
+            <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--neon-emerald);">
+              <strong style="color:var(--neon-emerald);">2. Distributed Batch Processing (PySpark):</strong> Aggregations across 900,000+ points and 7,500+ matches using PySpark DataFrames and Spark SQL on local JVM executors.
+            </div>
+            <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--neon-coral);">
+              <strong style="color:var(--neon-coral);">3. Storage Layer (MongoDB):</strong> Document collections for matches, point events, player profiles, and stream telemetry, with compound indexes.
+            </div>
+            <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; border-left: 3px solid var(--neon-amber);">
+              <strong style="color:var(--neon-amber);">4. Streaming & Algorithms:</strong> DGIM sliding-window counter (O(log² N) space), Kirsch-Mitzenmacher Bloom Filter, Louvain Community Detection, and Cosine Playstyle Recommender.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Surface Breakdown & Data Cleaning</h3>
+          <div id="surface-distribution-bars" style="margin-bottom: 1.25rem;">
+            <!-- Rendered dynamically -->
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Data Cleansing Metrics:</div>
+            <ul id="cleaning-metrics-list" style="font-size: 0.82rem; color: var(--text-secondary); padding-left: 1.2rem; line-height: 1.6;">
+              <!-- Rendered dynamically -->
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         2. FEATURE 1: PLAYER INTELLIGENCE LAB
+         =================================================================== -->
+    <section id="player-lab" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Player Intelligence Lab</h2>
+          <p class="section-desc">Distributed PySpark aggregation comparing ATP player profiles across surfaces and head-to-head records.</p>
+        </div>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Player A</label><br>
+          <select id="lab-player-a" style="min-width: 220px;"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Player B</label><br>
+          <select id="lab-player-b" style="min-width: 220px;"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Surface</label><br>
+          <select id="lab-surface-filter">
+            <option value="Overall">All Surfaces</option>
+            <option value="Hard">Hard Court</option>
+            <option value="Clay">Clay Court</option>
+            <option value="Grass">Grass Court</option>
+          </select>
+        </div>
+        <div style="align-self: flex-end;">
+          <button class="btn" onclick="loadPlayerLab()">⚡ Compare Players</button>
+        </div>
+      </div>
+
+      <!-- Head to Head Summary -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+          <h3 class="card-title" style="margin: 0;">Head-to-Head Historical Record</h3>
+          <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            <strong id="lab-name-a" style="color: var(--cyan-primary);"></strong> (<span id="lab-matches-a"></span>) vs 
+            <strong id="lab-name-b" style="color: var(--neon-coral);"></strong> (<span id="lab-matches-b"></span>)
+          </div>
+        </div>
+        <div id="lab-h2h-summary"></div>
+      </div>
+
+      <!-- Comparative Stat Bars & Radar -->
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <h3 class="card-title">Comparative Performance Breakdown</h3>
+          <div id="lab-stat-bars">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Tactical Profile Radar</h3>
+          <div class="radar-wrapper">
+            <svg id="lab-radar-svg" width="300" height="300" viewBox="0 0 300 300"></svg>
+          </div>
+          <div style="display: flex; justify-content: center; gap: 1.5rem; font-size: 0.82rem; margin-top: 0.5rem;">
+            <span style="color: var(--cyan-primary);">■ Player A</span>
+            <span style="color: var(--neon-coral);">■ Player B</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meeting History Table -->
+      <div class="card">
+        <h3 class="card-title">Historical Matchup Timeline</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Season</th>
+                <th>Tournament</th>
+                <th>Surface</th>
+                <th>Round</th>
+                <th>Match Winner</th>
+              </tr>
+            </thead>
+            <tbody id="lab-meetings-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         3. FEATURE 2: MATCH MOMENTUM ANALYZER
+         =================================================================== -->
+    <section id="momentum" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Match Momentum Analyzer</h2>
+          <p class="section-desc">Point-by-point historical match replay powered by DGIM sliding-window algorithm and exponential momentum scoring.</p>
+        </div>
+      </div>
+
+      <!-- Historical Replay Warning Banner -->
+      <div class="replay-banner">
+        <span>⚠️</span>
+        <span>HISTORICAL REPLAY — NOT LIVE TENNIS. Verified point-by-point data from ATP Match Charting Project.</span>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div style="flex: 1; min-width: 280px;">
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Select Historical Match</label><br>
+          <select id="momentum-match-select" style="width: 100%;"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">DGIM Window (N points)</label><br>
+          <input type="number" id="momentum-window-input" value="40" min="10" max="100" style="width: 100px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">EWMA Smoothing (α)</label><br>
+          <input type="number" id="momentum-alpha-input" value="0.25" min="0.05" max="0.9" step="0.05" style="width: 100px;">
+        </div>
+        <div style="align-self: flex-end;">
+          <button class="btn" onclick="initMomentumView()">⚡ Load Match</button>
+        </div>
+      </div>
+
+      <!-- Live Replay Scoreboard -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h3 id="momentum-match-label" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);"></h3>
+            <span id="momentum-swings-count" class="status-pill" style="margin-top: 4px; display: inline-block;"></span>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="renderMomentumSnapshot(Math.max(0, state.replayIndex - 1))">◀ Step</button>
+            <button id="momentum-play-btn" class="btn" onclick="toggleReplayPlay()">▶ Play</button>
+            <button class="btn btn-secondary" onclick="renderMomentumSnapshot(Math.min(state.activeReplayData?.points.length - 1, state.replayIndex + 1))">Step ▶</button>
+          </div>
+        </div>
+
+        <!-- Scrubber -->
+        <input type="range" id="momentum-scrubber" min="0" max="100" value="0" style="width: 100%; margin-bottom: 1.25rem;" oninput="renderMomentumSnapshot(parseInt(this.value)); drawMomentumCanvas();">
+
+        <!-- Live Game State Card -->
+        <div class="grid-4" style="background: rgba(8,14,28,0.7); padding: 1rem; border-radius: 10px; border: 1px solid rgba(0,242,254,0.15);">
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">SCORE STATE</div>
+            <div id="live-score-display" style="font-size: 1.1rem; font-weight: 700; color: var(--cyan-primary); font-family: var(--font-mono);">-</div>
+          </div>
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">SERVER & LEVERAGE</div>
+            <div id="live-server-display" style="font-size: 0.95rem; font-weight: 600;">-</div>
+            <div id="live-point-label" style="font-size: 0.78rem; color: var(--neon-amber);">-</div>
+          </div>
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">POINT OUTCOME</div>
+            <div id="live-winner-display" style="font-size: 0.95rem; font-weight: 600; color: var(--neon-emerald);">-</div>
+          </div>
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">MOMENTUM SCORE</div>
+            <div id="live-momentum-score-text" style="font-size: 0.85rem; font-weight: 700; color: var(--cyan-primary);">-</div>
+            <div style="position: relative; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 4px;">
+              <div id="live-momentum-meter" style="position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan-primary); top: -2px; left: 50%; transform: translateX(-50%); box-shadow: 0 0 8px var(--cyan-primary);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Momentum Curve & DGIM Sliding Window -->
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <h3 class="card-title">Exponential Momentum Curve</h3>
+          <div class="momentum-canvas-wrapper">
+            <canvas id="momentum-curve-canvas"></canvas>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;">
+            <span>▲ Player 1 Momentum</span>
+            <span>▼ Player 2 Momentum</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">DGIM Sliding-Window Bucket Hierarchy</h3>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            Counting Player 1 point wins in sliding window (N=40) using power-of-two buckets (O(log² N) memory):
+          </div>
+          <div id="dgim-bucket-display" class="bucket-chain" style="margin-bottom: 1rem;">
+            <!-- Active buckets rendered dynamically -->
+          </div>
+          <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(0,242,254,0.15);">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
+              <span>DGIM Estimated Count:</span>
+              <strong id="dgim-est-wins" style="color: var(--cyan-primary); font-family: var(--font-mono);">0</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
+              <span>Ground Truth Exact Count:</span>
+              <strong id="dgim-exact-wins" style="color: var(--neon-emerald); font-family: var(--font-mono);">0</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+              <span>DGIM Error Verification:</span>
+              <strong id="dgim-error-pct" style="color: var(--neon-amber); font-family: var(--font-mono);">0.0%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         4. FEATURE 3: SERVE STRATEGY HEATMAP
+         =================================================================== -->
+    <section id="serve-strategy" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Serve Strategy & Court Placement</h2>
+          <p class="section-desc">Directional serve distribution across Deuce and Ad court service boxes with error analysis.</p>
+        </div>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Select Player</label><br>
+          <select id="serve-player-select" style="min-width: 240px;"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Court Surface</label><br>
+          <select id="serve-surface-select">
+            <option value="Hard">Hard Court</option>
+            <option value="Clay">Clay Court</option>
+            <option value="Grass">Grass Court</option>
+          </select>
+        </div>
+        <div style="align-self: flex-end;">
+          <button class="btn" onclick="loadServeStrategy()">⚡ Analyze Serve Placement</button>
+        </div>
+        <div style="margin-left: auto; align-self: center;">
+          <span id="total-serves-badge" class="status-pill"></span>
+        </div>
+      </div>
+
+      <!-- Court Diagram & Fault breakdown -->
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">Regulation Tennis Court Heatmap</h3>
+          <div class="court-container">
+            <svg class="tennis-court" viewBox="0 0 600 420">
+              <!-- Outer Court & Background -->
+              <rect x="10" y="10" width="580" height="400" rx="8" fill="#0b1b2f" stroke="#00f2fe" stroke-width="2"/>
+              <!-- Singles Court -->
+              <rect x="50" y="50" width="500" height="320" fill="#0d243f" stroke="#ffffff" stroke-width="2.5"/>
+              <!-- Doubles Alleys -->
+              <line x1="50" y1="90" x2="550" y2="90" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4,4"/>
+              <line x1="50" y1="330" x2="550" y2="330" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4,4"/>
+              <!-- Baselines & Center Mark -->
+              <line x1="50" y1="210" x2="65" y2="210" stroke="#ffffff" stroke-width="2.5"/>
+              <line x1="535" y1="210" x2="550" y2="210" stroke="#ffffff" stroke-width="2.5"/>
+              <!-- Net Line -->
+              <line x1="300" y1="40" x2="300" y2="380" stroke="#ffffff" stroke-width="3.5"/>
+              <text x="300" y="32" fill="#00f2fe" font-size="11" text-anchor="middle" font-family="var(--font-mono)">NET</text>
+
+              <!-- Service Boxes (Deuce and Ad) -->
+              <!-- Deuce Court Service Line (x: 180 to 300, y: 90 to 210) -->
+              <rect id="zone-deuce-wide" x="180" y="90" width="120" height="40" fill="rgba(0, 242, 254, 0.2)" stroke="#00f2fe" stroke-width="1"/>
+              <text id="text-deuce-wide" x="240" y="115" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">Wide</text>
+
+              <rect id="zone-deuce-body" x="180" y="130" width="120" height="40" fill="rgba(0, 242, 254, 0.2)" stroke="#00f2fe" stroke-width="1"/>
+              <text id="text-deuce-body" x="240" y="155" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">Body</text>
+
+              <rect id="zone-deuce-t" x="180" y="170" width="120" height="40" fill="rgba(0, 242, 254, 0.2)" stroke="#00f2fe" stroke-width="1"/>
+              <text id="text-deuce-t" x="240" y="195" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">T</text>
+
+              <!-- Center Service Line -->
+              <line x1="180" y1="210" x2="300" y2="210" stroke="#ffffff" stroke-width="2"/>
+
+              <!-- Ad Court Service Line (x: 180 to 300, y: 210 to 330) -->
+              <rect id="zone-ad-t" x="180" y="210" width="120" height="40" fill="rgba(79, 172, 254, 0.2)" stroke="#4facfe" stroke-width="1"/>
+              <text id="text-ad-t" x="240" y="235" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">T</text>
+
+              <rect id="zone-ad-body" x="180" y="250" width="120" height="40" fill="rgba(79, 172, 254, 0.2)" stroke="#4facfe" stroke-width="1"/>
+              <text id="text-ad-body" x="240" y="275" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">Body</text>
+
+              <rect id="zone-ad-wide" x="180" y="290" width="120" height="40" fill="rgba(79, 172, 254, 0.2)" stroke="#4facfe" stroke-width="1"/>
+              <text id="text-ad-wide" x="240" y="315" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">Wide</text>
+
+              <text x="120" y="155" fill="#94a3b8" font-size="12" text-anchor="middle" font-weight="600">DEUCE COURT</text>
+              <text x="120" y="275" fill="#94a3b8" font-size="12" text-anchor="middle" font-weight="600">AD COURT</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Fault & Error Trajectory Analysis</h3>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+            Distribution of missed serves by fault mechanics and trajectory:
+          </div>
+          
+          <div style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <span>Net Errors (Failed clearance)</span>
+              <strong id="fault-net-pct" style="color: var(--neon-coral); font-family: var(--font-mono);">-</strong>
+            </div>
+            <div style="height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px;">
+              <div style="width: 50%; height: 100%; background: var(--neon-coral); border-radius: 4px;"></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <span>Wide Errors (Lateral divergence)</span>
+              <strong id="fault-wide-pct" style="color: var(--neon-amber); font-family: var(--font-mono);">-</strong>
+            </div>
+            <div style="height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px;">
+              <div style="width: 30%; height: 100%; background: var(--neon-amber); border-radius: 4px;"></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <span>Deep Errors (Long beyond service line)</span>
+              <strong id="fault-deep-pct" style="color: var(--cyan-primary); font-family: var(--font-mono);">-</strong>
+            </div>
+            <div style="height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px;">
+              <div style="width: 20%; height: 100%; background: var(--cyan-primary); border-radius: 4px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         5. FEATURE 4: SIMILAR PLAYSTYLE RECOMMENDER
+         =================================================================== -->
+    <section id="recommender" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Similar Playstyle Recommender</h2>
+          <p class="section-desc">Multi-dimensional player feature vectors, Z-score normalization, and Cosine Similarity with explainable feature attribution.</p>
+        </div>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Select Target Player</label><br>
+          <select id="recommender-player-select" style="min-width: 240px;"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Recommendations (Top K)</label><br>
+          <select id="recommender-topk-select">
+            <option value="5">Top 5 Players</option>
+            <option value="8">Top 8 Players</option>
+          </select>
+        </div>
+        <div style="align-self: flex-end;">
+          <button class="btn" onclick="loadRecommender()">⚡ Compute Similar Playstyles</button>
+        </div>
+      </div>
+
+      <!-- Target Player Banner -->
+      <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(0,242,254,0.1), rgba(12,21,39,0.8));">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 0.75rem; color: var(--cyan-primary); text-transform: uppercase; font-family: var(--font-mono);">Target Player Profile</div>
+            <h3 id="rec-target-name" style="font-size: 1.5rem; font-weight: 800; color: #ffffff;"></h3>
+            <span id="rec-target-matches" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+          </div>
+          <div>
+            <span class="status-pill" style="border-color: var(--cyan-primary); color: var(--cyan-primary);">
+              Archetype: <strong id="rec-target-archetype" style="margin-left: 4px;"></strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendations List -->
+      <div id="recommender-cards-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         6. FEATURE 5: ATP RIVALRY NETWORK
+         =================================================================== -->
+    <section id="rivalry-network" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">ATP Rivalry Network</h2>
+          <p class="section-desc">Graph modeling of historical ATP rivalries, Louvain community detection for competitive eras, and PageRank dominance centrality.</p>
+        </div>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Min Meetings Filter</label><br>
+          <input type="range" id="network-meetings-slider" min="2" max="10" value="3" oninput="document.getElementById('net-slider-val').textContent = this.value; loadRivalryNetwork();">
+          <span id="net-slider-val" style="font-family: var(--font-mono); color: var(--cyan-primary); margin-left: 8px;">3</span>
+        </div>
+        <div style="align-self: flex-end;">
+          <button class="btn" onclick="loadRivalryNetwork()">⚡ Refresh Network</button>
+        </div>
+      </div>
+
+      <!-- Network KPIs -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="card kpi-card">
+          <div class="kpi-label">Graph Nodes</div>
+          <div class="kpi-value" id="net-nodes-count">0</div>
+          <div class="kpi-sub">Filtered ATP players</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Rivalry Edges</div>
+          <div class="kpi-value" id="net-edges-count">0</div>
+          <div class="kpi-sub">Weighted head-to-head ties</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Louvain Communities</div>
+          <div class="kpi-value" id="net-communities-count">0</div>
+          <div class="kpi-sub">Detected competitive clusters</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Graph Modularity</div>
+          <div class="kpi-value" id="net-modularity-score" style="font-size: 1.6rem;">Q = 0.0</div>
+          <div class="kpi-sub">Community partition quality</div>
+        </div>
+      </div>
+
+      <!-- Graph & Clusters -->
+      <div class="grid-2">
+        <div class="card" style="padding: 1rem;">
+          <h3 class="card-title">Interactive Rivalry Network Graph</h3>
+          <div class="graph-container">
+            <svg id="network-svg-canvas" width="100%" height="100%"></svg>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; text-align: center;">
+            Node size: PageRank centrality • Edge width: Total meetings • Colors: Louvain communities
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Louvain Community Clusters</h3>
+          <div id="network-cluster-legend" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
+            <!-- Clusters rendered dynamically -->
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+            <h4 style="font-size: 0.85rem; color: var(--cyan-primary); margin-bottom: 0.5rem;">Graph Algorithm Formulation</h4>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6;">
+              <strong>Louvain Algorithm:</strong> Maximizes modularity <em>Q</em> by iteratively moving nodes to neighbor communities that yield maximum modularity gain, then building a new network whose vertices are communities.
+            </p>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; margin-top: 0.4rem;">
+              <strong>PageRank:</strong> Measures eigenvector centrality across directed match edges with damping factor α = 0.85.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         7. FEATURE 6: STREAM INTEGRITY MONITOR
+         =================================================================== -->
+    <section id="stream-integrity" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Stream Integrity Monitor</h2>
+          <p class="section-desc">Incremental match-point stream processing with Kirsch-Mitzenmacher Bloom Filter, empirical false-positive validation, and MongoDB persistence.</p>
+        </div>
+      </div>
+
+      <div class="control-bar card" style="padding: 1rem 1.5rem;">
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Bit Array Size (m)</label><br>
+          <input type="number" id="bloom-m-input" value="8192" style="width: 110px;">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Hash Functions (k)</label><br>
+          <input type="number" id="bloom-k-input" value="5" min="2" max="10" style="width: 90px;">
+        </div>
+        <div style="align-self: flex-end; display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="resetStreamFilter()">Reset Filter</button>
+          <button class="btn" onclick="streamStep(5)">⚡ Step 5 Points</button>
+          <button id="stream-auto-btn" class="btn" onclick="toggleAutoStream()">⚡ Start Live Stream</button>
+          <button class="btn btn-danger" onclick="injectDuplicateEvent()">⚠️ Inject Duplicate</button>
+        </div>
+      </div>
+
+      <!-- Stream KPIs -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="card kpi-card">
+          <div class="kpi-label">Inserted Events (n)</div>
+          <div class="kpi-value" id="stream-inserted-n">0</div>
+          <div class="kpi-sub">Total point events processed</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Bit Array Density</div>
+          <div class="kpi-value" id="stream-bits-density" style="font-size: 1.45rem;">0.0%</div>
+          <div class="kpi-sub">Saturation of bit array m</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Theoretical False-Positive</div>
+          <div class="kpi-value" id="stream-theoretical-fp" style="font-size: 1.6rem;">0.000000</div>
+          <div class="kpi-sub">p = (1 - e^(-kn/m))^k</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Duplicates Caught</div>
+          <div class="kpi-value" id="stream-duplicates-rejected" style="color: var(--neon-coral);">0</div>
+          <div class="kpi-sub">Rejected before insertion</div>
+        </div>
+      </div>
+
+      <!-- Live Stream Feed & MongoDB Document Inspector -->
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">Live Ingested Point Stream Feed</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Event ID</th>
+                  <th>Match</th>
+                  <th>Score</th>
+                  <th>Server</th>
+                  <th>Serve Dir</th>
+                  <th>Bloom Status</th>
+                </tr>
+              </thead>
+              <tbody id="stream-events-table-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 class="card-title" style="margin: 0;">MongoDB Document Inspector</h3>
+            <span id="stream-mongo-docs" class="status-pill">0 Docs</span>
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            Live document serialized from MongoDB <code>stream_events</code> collection:
+          </div>
+          <pre id="mongo-stream-json-preview" class="json-view">{ "status": "Waiting for stream events..." }</pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
