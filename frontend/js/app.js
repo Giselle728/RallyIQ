@@ -17,6 +17,11 @@ const state = {
   networkData: null
 };
 
+function setSafeText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 // Initialization on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
@@ -47,7 +52,8 @@ function showTab(tabId) {
   if (activeSec) activeSec.classList.add('active');
 
   // Lazy-load data for active tab
-  if (tabId === 'player-lab') loadPlayerLab();
+  if (tabId === 'match-predictor') initMatchPredictor();
+  else if (tabId === 'player-lab') loadPlayerLab();
   else if (tabId === 'momentum') initMomentumView();
   else if (tabId === 'serve-strategy') loadServeStrategy();
   else if (tabId === 'recommender') loadRecommender();
@@ -64,17 +70,79 @@ async function loadOverview() {
     const data = await res.json();
     const rep = data.dataset_report || {};
     const st = data.storage || {};
+    const stHealth = data.storage_health || {};
+    const ml = data.ml_predictor || {};
 
     // KPIs
-    document.getElementById('kpi-raw-size').textContent = `${rep.raw_size_mb || 117.0} MB`;
-    document.getElementById('kpi-points').textContent = (rep.point_count || 904128).toLocaleString();
-    document.getElementById('kpi-matches').textContent = (rep.match_count || 7565).toLocaleString();
-    document.getElementById('kpi-seasons').textContent = `${rep.season_coverage?.total_seasons || 58} Seasons (${rep.season_coverage?.min_year} - ${rep.season_coverage?.max_year})`;
+    setSafeText('kpi-raw-size', `${rep.raw_size_mb || 117.0} MB`);
+    setSafeText('kpi-points', (rep.point_count || 904128).toLocaleString());
+    setSafeText('kpi-matches', (rep.match_count || 7565).toLocaleString());
+    setSafeText('kpi-seasons', `${rep.season_coverage?.total_seasons || 58} Seasons (${rep.season_coverage?.min_year} - ${rep.season_coverage?.max_year})`);
 
-    // Storage Status
+    // Header Storage Status
     const mongoStatusEl = document.getElementById('mongo-engine-status');
     if (mongoStatusEl) {
-      mongoStatusEl.textContent = st.engine || 'Connected';
+      mongoStatusEl.textContent = st.engine || 'Document Store';
+    }
+
+    // Header ML Status Pill
+    const mlStatusEl = document.getElementById('ml-engine-status');
+    if (mlStatusEl) {
+      const acc = ml.test_metrics?.random_forest?.accuracy;
+      const accPct = acc ? `${(acc * 100).toFixed(1)}% Acc` : '67.9% Acc';
+      mlStatusEl.textContent = `ML: Random Forest (${accPct})`;
+    }
+
+    // Bind dynamic benchmark cards in Overview
+    const bAlgo = document.getElementById('benchmark-ml-algo');
+    const bAcc = document.getElementById('benchmark-ml-acc');
+    const bAuc = document.getElementById('benchmark-ml-auc');
+    const bSplits = document.getElementById('benchmark-ml-splits');
+
+    if (ml && ml.test_metrics) {
+      const rf = ml.test_metrics.random_forest || {};
+      const lr = ml.test_metrics.logistic_regression_baseline || {};
+      const rfAcc = rf.accuracy ? `${(rf.accuracy * 100).toFixed(2)}%` : '67.94%';
+      const lrAcc = lr.accuracy ? `${(lr.accuracy * 100).toFixed(2)}%` : '67.28%';
+      const rfAuc = rf.roc_auc ? rf.roc_auc.toFixed(4) : '0.7505';
+      const lrAuc = lr.roc_auc ? lr.roc_auc.toFixed(4) : '0.7350';
+
+      if (bAlgo) bAlgo.textContent = `${ml.algorithm || 'RandomForest'} (100 Trees, max_depth=6)`;
+      if (bAcc) bAcc.textContent = `${rfAcc} (Baseline LR: ${lrAcc})`;
+      if (bAuc) bAuc.textContent = `${rfAuc} (Baseline LR: ${lrAuc})`;
+      if (bSplits) {
+        const ds = ml.dataset_coverage || {};
+        bSplits.textContent = `Chronological: ${ds.train_samples?.toLocaleString() || '7,800'} Train / ${ds.test_samples?.toLocaleString() || '1,672'} Test`;
+      }
+    }
+
+    // Diagnostics Card in Overview
+    const diagEngine = document.getElementById('diag-mongo-engine');
+    const diagCluster = document.getElementById('diag-mongo-cluster');
+    const diagDb = document.getElementById('diag-mongo-db');
+    const diagPing = document.getElementById('diag-mongo-ping');
+    const mongoBadge = document.getElementById('overview-mongo-badge');
+
+    if (diagEngine) diagEngine.textContent = stHealth.engine || st.engine || 'Document Store';
+    if (diagCluster) diagCluster.textContent = stHealth.cluster || 'tennisbda.ryaeljl.mongodb.net';
+    if (diagDb) diagDb.textContent = stHealth.database || 'rallyiq_tennis';
+    if (diagPing) {
+      if (stHealth.ping === 'ok') {
+        diagPing.textContent = 'Active (admin.ping OK)';
+        diagPing.style.color = 'var(--neon-emerald)';
+      } else {
+        diagPing.textContent = 'Active (Disk Persistence Sync)';
+        diagPing.style.color = 'var(--cyan-primary)';
+      }
+    }
+    if (mongoBadge) {
+      if (stHealth.ping === 'ok') {
+        mongoBadge.textContent = 'Atlas Live';
+        mongoBadge.className = 'confidence-tag confidence-high';
+      } else {
+        mongoBadge.textContent = 'Local Active';
+        mongoBadge.className = 'confidence-tag confidence-moderate';
+      }
     }
 
     // Surfaces
@@ -114,7 +182,7 @@ async function loadOverview() {
 }
 
 // ============================================================================
-// 2. FEATURE 1: PLAYER INTELLIGENCE LAB
+// 2. FEATURE: PLAYER DROPDOWNS & LIST
 // ============================================================================
 async function loadPlayersList() {
   try {
@@ -124,6 +192,8 @@ async function loadPlayersList() {
 
     const pA = document.getElementById('lab-player-a');
     const pB = document.getElementById('lab-player-b');
+    const pPredictA = document.getElementById('predict-player-a');
+    const pPredictB = document.getElementById('predict-player-b');
     const pRec = document.getElementById('recommender-player-select');
     const pServe = document.getElementById('serve-player-select');
 
@@ -131,6 +201,8 @@ async function loadPlayersList() {
 
     if (pA) { pA.innerHTML = options; pA.value = 'Novak Djokovic'; }
     if (pB) { pB.innerHTML = options; pB.value = 'Rafael Nadal'; }
+    if (pPredictA) { pPredictA.innerHTML = options; pPredictA.value = 'Carlos Alcaraz'; }
+    if (pPredictB) { pPredictB.innerHTML = options; pPredictB.value = 'Jannik Sinner'; }
     if (pRec) { pRec.innerHTML = options; pRec.value = 'Carlos Alcaraz'; }
     if (pServe) { pServe.innerHTML = options; pServe.value = 'Roger Federer'; }
   } catch (err) {
@@ -138,6 +210,304 @@ async function loadPlayersList() {
   }
 }
 
+// ============================================================================
+// 3. FEATURE: ML MATCH PREDICTOR
+// ============================================================================
+let predictorInitialized = false;
+
+function initMatchPredictor() {
+  if (!predictorInitialized) {
+    const btnPredict = document.getElementById('btn-run-prediction');
+    const btnSwap = document.getElementById('btn-predict-swap');
+    if (btnPredict) btnPredict.addEventListener('click', runMatchPrediction);
+    if (btnSwap) btnSwap.addEventListener('click', swapPredictionPlayers);
+    predictorInitialized = true;
+  }
+  const container = document.getElementById('prediction-results-container');
+  if (container && (!container.children || container.children.length === 0)) {
+    runMatchPrediction();
+  }
+}
+
+function swapPredictionPlayers() {
+  const pA = document.getElementById('predict-player-a');
+  const pB = document.getElementById('predict-player-b');
+  if (!pA || !pB) return;
+  const temp = pA.value;
+  pA.value = pB.value;
+  pB.value = temp;
+  runMatchPrediction();
+}
+
+async function runMatchPrediction() {
+  const pA = document.getElementById('predict-player-a')?.value;
+  const pB = document.getElementById('predict-player-b')?.value;
+  const surf = document.getElementById('predict-surface')?.value || 'Hard';
+  const bestOf = document.getElementById('predict-best-of')?.value || '3';
+  const container = document.getElementById('prediction-results-container');
+
+  if (!container) return;
+
+  if (!pA || !pB) {
+    container.innerHTML = `<div class="card" style="color: var(--neon-coral);">Please select both Player A and Player B.</div>`;
+    return;
+  }
+  if (pA === pB) {
+    container.innerHTML = `
+      <div class="card" style="border-color: var(--neon-amber); padding: 1.5rem;">
+        <h4 style="color: var(--neon-amber); margin-bottom: 0.5rem;">⚠️ Select Distinct ATP Competitors</h4>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+          Player A and Player B cannot be the same player (${pA}). Please choose two different opponents to compute head-to-head match probabilities.
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card" style="text-align: center; padding: 2.5rem;">
+      <div style="font-family: var(--font-mono); color: var(--cyan-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">
+        ⚡ Generating Zero-Leakage Pre-Match Prediction...
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">
+        Synthesizing career win rates, ${surf} specialty, 10-match rolling form, and prior head-to-head encounters for ${pA} vs ${pB}...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/predict/match?player_a=${encodeURIComponent(pA)}&player_b=${encodeURIComponent(pB)}&surface=${encodeURIComponent(surf)}&best_of=${bestOf}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `Prediction error (${res.status})`);
+    }
+    const data = await res.json();
+    renderPredictionResults(data);
+  } catch (err) {
+    console.error('Error running match prediction:', err);
+    container.innerHTML = `
+      <div class="card" style="border-color: var(--neon-coral); padding: 1.5rem;">
+        <h4 style="color: var(--neon-coral); margin-bottom: 0.5rem;">Prediction Request Error</h4>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">${err.message}</p>
+      </div>
+    `;
+  }
+}
+
+function renderPredictionResults(data) {
+  const container = document.getElementById('prediction-results-container');
+  if (!container) return;
+
+  const pA = data.player_a;
+  const pB = data.player_b;
+  const pred = data.prediction;
+  const base = data.baseline_comparison || {};
+  const meta = data.model_metadata || {};
+  const factors = data.key_factors || [];
+  const h2h = data.head_to_head_prior || {};
+
+  const probA = pred.player_a_win_probability;
+  const probB = pred.player_b_win_probability;
+  const isWinnerA = pred.predicted_winner === pA.name;
+  
+  const confClass = pred.confidence_level === 'High' ? 'confidence-high' :
+                    pred.confidence_level === 'Moderate' ? 'confidence-moderate' : 'confidence-slight';
+
+  // Coverage warning notice if any player relies on fallback prior
+  const coverageNoticeHtml = (data.has_fallback_player && data.coverage_notices?.length) ? `
+    <div class="card" style="border-left: 4px solid var(--neon-coral); background: rgba(255, 75, 75, 0.08); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+        <span style="font-size: 1.1rem;">⚠️</span>
+        <strong style="color: var(--neon-coral); font-size: 0.92rem;">Dataset Coverage & Fallback Notice</strong>
+      </div>
+      <ul style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; padding-left: 1.2rem; line-height: 1.6;">
+        ${data.coverage_notices.map(n => `<li>${n}</li>`).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  // Format analytical factors
+  const factorsHtml = factors.length > 0 ? factors.map(f => {
+    const impactClass = f.impact === 'High' ? 'factor-impact-high' :
+                        f.impact === 'Medium' ? 'factor-impact-med' : 'factor-impact-low';
+    const favorColor = f.favor === pA.name ? 'var(--cyan-primary)' :
+                       f.favor === pB.name ? 'var(--neon-coral)' : 'var(--text-muted)';
+    return `
+      <div class="factor-item">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+          <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">${f.factor}</span>
+          <span class="${impactClass}">● ${f.impact} Impact</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.35rem;">${f.detail}</div>
+        <div style="font-size: 0.78rem;">
+          Favors: <strong style="color: ${favorColor}; font-family: var(--font-mono);">${f.favor}</strong>
+        </div>
+      </div>
+    `;
+  }).join('') : `
+    <div style="font-size: 0.85rem; color: var(--text-muted); font-style: italic; padding: 1rem 0;">
+      No single dominant factor; this matchup presents evenly matched historical records across career, surface, form, and rivalry metrics.
+    </div>
+  `;
+
+  container.innerHTML = `
+    ${coverageNoticeHtml}
+
+    <!-- Top Prediction & Probability Duel Banner -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 0.25rem;">
+            Projected Match Outcome • ${data.surface} Court (Best of ${data.best_of})
+          </div>
+          <div style="font-size: 1.55rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <span>🏆 Predicted Winner:</span>
+            <span style="color: ${isWinnerA ? 'var(--cyan-primary)' : 'var(--neon-coral)'};">${pred.predicted_winner}</span>
+            <span style="font-size: 1.2rem; font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">(${pred.winner_probability}%)</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span class="confidence-tag ${confClass}">● ${pred.confidence_level}</span>
+        </div>
+      </div>
+
+      <!-- Probability Comparison Duel Bar -->
+      <div class="prob-bar-wrapper">
+        <div class="prob-bar-header">
+          <div>
+            <strong style="color: var(--cyan-primary);">${pA.name}</strong>
+            <span style="font-family: var(--font-mono); font-size: 1.15rem; font-weight: 800; margin-left: 0.5rem; color: var(--cyan-primary);">${probA}%</span>
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">
+            Win Probability Distribution
+          </div>
+          <div>
+            <span style="font-family: var(--font-mono); font-size: 1.15rem; font-weight: 800; margin-right: 0.5rem; color: var(--neon-coral);">${probB}%</span>
+            <strong style="color: var(--neon-coral);">${pB.name}</strong>
+          </div>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill-a" style="width: ${probA}%;"></div>
+          <div class="prob-bar-fill-b" style="width: ${probB}%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.6rem; font-family: var(--font-mono);">
+          <span>LR Win Probability: ${(base.logistic_regression_prob_a ?? probA).toFixed(1)}%</span>
+          <span>Symmetrical Ensembled Random Forest (100 Trees)</span>
+          <span>LR Win Probability: ${(base.logistic_regression_prob_b ?? probB).toFixed(1)}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2-Column Grid: Analytical Drivers vs Pre-Match Tactical Profile -->
+    <div class="grid-2" style="margin-bottom: 1.5rem;">
+      <!-- Key Drivers Column -->
+      <div class="card">
+        <h3 class="card-title">Key Analytical Drivers & Feature Attribution</h3>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Feature attributions explaining why the model favored the projected winner based on pre-match differences:
+        </p>
+        <div>
+          ${factorsHtml}
+        </div>
+      </div>
+
+      <!-- Tactical Profile Comparison Column -->
+      <div class="card">
+        <h3 class="card-title">Pre-Match Historical Profile Breakdown</h3>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Verified pre-match metrics derived strictly prior to match timestamp without outcome leakage:
+        </p>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Feature Metric</th>
+                <th style="color: var(--cyan-primary);">${pA.name}</th>
+                <th style="color: var(--neon-coral);">${pB.name}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Career Win Rate</strong></td>
+                <td style="font-family: var(--font-mono);">${pA.career_win_rate}% (${pA.total_wins}/${pA.total_matches})</td>
+                <td style="font-family: var(--font-mono);">${pB.career_win_rate}% (${pB.total_wins}/${pB.total_matches})</td>
+              </tr>
+              <tr>
+                <td><strong>${data.surface} Court Win Rate</strong></td>
+                <td style="font-family: var(--font-mono);">${pA.surface_win_rate}% (${pA.surface_wins}/${pA.surface_matches})</td>
+                <td style="font-family: var(--font-mono);">${pB.surface_win_rate}% (${pB.surface_wins}/${pB.surface_matches})</td>
+              </tr>
+              <tr>
+                <td><strong>Recent Rolling Form (Last 10)</strong></td>
+                <td style="font-family: var(--font-mono);">${pA.recent_form_win_rate}%</td>
+                <td style="font-family: var(--font-mono);">${pB.recent_form_win_rate}%</td>
+              </tr>
+              <tr>
+                <td><strong>Prior Head-to-Head Meetings</strong></td>
+                <td style="font-family: var(--font-mono);">${h2h.player_a_wins} Wins</td>
+                <td style="font-family: var(--font-mono);">${h2h.player_b_wins} Wins</td>
+              </tr>
+              <tr>
+                <td><strong>Verified Point Matches (2010–2026 Model Training)</strong></td>
+                <td style="font-family: var(--font-mono);">${pA.has_verified_training_data ? `${pA.verified_matches} matches` : '<span style="color:var(--neon-coral);">0 (Neutral Prior 50% applied)</span>'}</td>
+                <td style="font-family: var(--font-mono);">${pB.has_verified_training_data ? `${pB.verified_matches} matches` : '<span style="color:var(--neon-coral);">0 (Neutral Prior 50% applied)</span>'}</td>
+              </tr>
+              <tr>
+                <td><strong>Historical Matches in Database (1968–2026)</strong></td>
+                <td style="font-family: var(--font-mono);">${pA.historical_matches || pA.total_matches} matches</td>
+                <td style="font-family: var(--font-mono);">${pB.historical_matches || pB.total_matches} matches</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Governance, Benchmark & Disclaimer Card -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <h3 class="card-title" style="margin: 0;">Machine Learning Governance & Benchmark Validation</h3>
+        <span class="confidence-tag confidence-high">Zero-Leakage Verified</span>
+      </div>
+      <div class="grid-4" style="margin-bottom: 1rem;">
+        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Holdout Test Accuracy</div>
+          <div style="font-size: 1.45rem; font-weight: 800; color: var(--neon-emerald); font-family: var(--font-mono); margin: 0.2rem 0;">${meta.test_accuracy || '67.94%'}</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">vs Baseline LR ${base.baseline_test_accuracy || '67.28%'}</div>
+        </div>
+        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Holdout Test ROC-AUC</div>
+          <div style="font-size: 1.45rem; font-weight: 800; color: var(--neon-emerald); font-family: var(--font-mono); margin: 0.2rem 0;">${meta.test_roc_auc || '0.7505'}</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">vs Baseline LR ${base.baseline_test_roc_auc || '0.7350'}</div>
+        </div>
+        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Mathematical Symmetry</div>
+          <div style="font-size: 1.45rem; font-weight: 800; color: var(--cyan-primary); font-family: var(--font-mono); margin: 0.2rem 0;">100.0% Exact</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">P(A, B) = 1 - P(B, A)</div>
+        </div>
+        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Split Strategy</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); margin: 0.35rem 0;">Chronological</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">70/15/15 (2010–2026)</div>
+        </div>
+      </div>
+      <div style="font-size: 0.82rem; line-height: 1.7; color: var(--text-secondary);">
+        <strong>Methodological Safeguards:</strong> Features are extracted chronologically match-by-match. Post-match stats (aces, double faults, unforced errors, match duration, and match winners) are strictly excluded from the pre-match feature vectors.
+      </div>
+
+      <div class="disclaimer-card">
+        <span style="font-size: 1.3rem;">⚠️</span>
+        <div>
+          <strong>Sports Analytics Disclaimer:</strong> ${data.disclaimer || 'Probabilistic model estimate based on historical pre-match feature vectors without outcome leakage. Sports matches contain intrinsic unpredictability.'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// 4. FEATURE 1: PLAYER INTELLIGENCE LAB
+// ============================================================================
 async function loadPlayerLab() {
   const pA = document.getElementById('lab-player-a')?.value || 'Novak Djokovic';
   const pB = document.getElementById('lab-player-b')?.value || 'Rafael Nadal';
@@ -305,12 +675,25 @@ async function loadReplayMatches() {
 
 function initMomentumView() {
   const matchId = document.getElementById('momentum-match-select')?.value;
-  if (matchId) loadMatchReplay(matchId);
+  if (!matchId) return;
+  if (state.activeReplayData && state.activeReplayData.match_id === matchId) {
+    renderMomentumSnapshot(state.replayIndex);
+    requestAnimationFrame(() => drawMomentumCanvas());
+  } else {
+    loadMatchReplay(matchId);
+  }
 }
 
 async function loadMatchReplay(matchId) {
   const winSize = parseInt(document.getElementById('momentum-window-input')?.value || '40');
   const alpha = parseFloat(document.getElementById('momentum-alpha-input')?.value || '0.25');
+
+  if (state.replayInterval) {
+    clearInterval(state.replayInterval);
+    state.replayInterval = null;
+    const playBtn = document.getElementById('momentum-play-btn');
+    if (playBtn) playBtn.textContent = '▶ Play';
+  }
 
   try {
     const res = await fetch(`${API_BASE}/api/momentum/replay?match_id=${encodeURIComponent(matchId)}&window_size=${winSize}&alpha=${alpha}`);
@@ -318,42 +701,94 @@ async function loadMatchReplay(matchId) {
     state.activeReplayData = data;
     state.replayIndex = 0;
 
-    document.getElementById('momentum-match-label').textContent = `${data.metadata?.tournament} (${data.metadata?.year}): ${data.p1} vs ${data.p2}`;
-    document.getElementById('momentum-swings-count').textContent = `${data.momentum_swings} Lead Changes`;
+    const labelEl = document.getElementById('momentum-match-label');
+    if (labelEl) {
+      labelEl.textContent = `${data.metadata?.tournament || 'Match'} (${data.metadata?.year || ''}): ${data.p1} vs ${data.p2}`;
+    }
+    const swingsEl = document.getElementById('momentum-swings-count');
+    if (swingsEl) {
+      swingsEl.textContent = `${data.momentum_swings} Momentum Shifts`;
+    }
 
     const slider = document.getElementById('momentum-scrubber');
     if (slider) {
+      slider.min = 0;
       slider.max = data.points.length - 1;
       slider.value = 0;
     }
 
     renderMomentumSnapshot(0);
-    drawMomentumCanvas();
+    requestAnimationFrame(() => drawMomentumCanvas());
   } catch (err) {
     console.error('Error loading match replay:', err);
   }
 }
 
 function renderMomentumSnapshot(idx) {
-  if (!state.activeReplayData || !state.activeReplayData.points[idx]) return;
-  state.replayIndex = idx;
-  const pt = state.activeReplayData.points[idx];
+  if (!state.activeReplayData || !state.activeReplayData.points) return;
+  const clampedIdx = Math.max(0, Math.min(state.activeReplayData.points.length - 1, idx));
+  state.replayIndex = clampedIdx;
+  const pt = state.activeReplayData.points[clampedIdx];
+  if (!pt) return;
+
+  const p1Name = state.activeReplayData.p1 || 'Player 1';
+  const p2Name = state.activeReplayData.p2 || 'Player 2';
 
   // Scoreboard
-  document.getElementById('live-score-display').textContent = `Set ${pt.set1}-${pt.set2} | Games ${pt.gm1}-${pt.gm2} | Point: ${pt.score}`;
-  document.getElementById('live-server-display').textContent = `Server: Player ${pt.server}`;
-  document.getElementById('live-point-label').textContent = pt.label;
-  document.getElementById('live-winner-display').textContent = `Point Won By: ${pt.winner_name}`;
+  const scoreEl = document.getElementById('live-score-display');
+  if (scoreEl) {
+    if (pt.point_number === 0) {
+      scoreEl.textContent = `Set 0-0 | Games 0-0 | Point: 0-0`;
+    } else {
+      scoreEl.textContent = `Set ${pt.set1}-${pt.set2} | Games ${pt.gm1}-${pt.gm2} | Point: ${pt.score}`;
+    }
+  }
+
+  const serverEl = document.getElementById('live-server-display');
+  if (serverEl) {
+    const serverName = pt.server === 1 ? p1Name : (pt.server === 2 ? p2Name : `Player ${pt.server}`);
+    serverEl.textContent = pt.point_number === 0 ? `Opening Server: ${serverName}` : `Server: ${serverName}`;
+  }
+
+  const labelEl = document.getElementById('live-point-label');
+  if (labelEl) {
+    labelEl.textContent = pt.label || '-';
+  }
+
+  const winnerEl = document.getElementById('live-winner-display');
+  if (winnerEl) {
+    if (pt.point_number === 0) {
+      winnerEl.textContent = `Match Ready — Step to start`;
+      winnerEl.style.color = 'var(--text-muted)';
+    } else {
+      winnerEl.textContent = `Point Won By: ${pt.winner_name}`;
+      winnerEl.style.color = 'var(--neon-emerald)';
+    }
+  }
 
   // Momentum Gauge
   const mVal = pt.momentum;
   const mBar = document.getElementById('live-momentum-meter');
   if (mBar) {
-    const clamped = Math.max(-3, Math.min(3, mVal));
-    const pct = ((clamped + 3) / 6) * 100;
+    const clamped = Math.max(-3.5, Math.min(3.5, mVal));
+    const pct = ((clamped + 3.5) / 7.0) * 100;
     mBar.style.left = `${pct}%`;
   }
-  document.getElementById('live-momentum-score-text').textContent = `Score: ${mVal > 0 ? '+' : ''}${mVal} (${pt.dominant_player} Advantage)`;
+  const mText = document.getElementById('live-momentum-score-text');
+  if (mText) {
+    if (pt.point_number === 0 || Math.abs(mVal) < 0.001) {
+      mText.textContent = `Score: 0.000 (Neutral)`;
+    } else {
+      const sign = mVal > 0 ? '+' : '';
+      mText.textContent = `Score: ${sign}${mVal.toFixed(3)} (${pt.dominant_player} Advantage)`;
+    }
+  }
+
+  // DGIM Dynamic Header Description
+  const dgimDesc = document.getElementById('dgim-description-text');
+  if (dgimDesc) {
+    dgimDesc.textContent = `Counting ${p1Name} point wins in sliding window (N=${pt.window_size}) using power-of-two buckets (O(log² N) memory):`;
+  }
 
   // DGIM Buckets
   const bucketContainer = document.getElementById('dgim-bucket-display');
@@ -364,10 +799,29 @@ function renderMomentumSnapshot(idx) {
       : '<span style="color:var(--text-muted);font-size:0.8rem;">No active buckets in window</span>';
   }
 
-  // DGIM Accuracy
-  document.getElementById('dgim-est-wins').textContent = pt.dgim_p1_window_wins;
-  document.getElementById('dgim-exact-wins').textContent = pt.dgim_p1_exact_wins;
-  document.getElementById('dgim-error-pct').textContent = `${pt.dgim_p1_error_pct}% (Bound: ≤25%)`;
+  // DGIM Accuracy Metrics
+  const estWinsEl = document.getElementById('dgim-est-wins');
+  if (estWinsEl) estWinsEl.textContent = pt.dgim_p1_window_wins;
+
+  const exactWinsEl = document.getElementById('dgim-exact-wins');
+  if (exactWinsEl) exactWinsEl.textContent = pt.dgim_p1_exact_wins;
+
+  const errPctEl = document.getElementById('dgim-error-pct');
+  if (errPctEl) {
+    const bound = pt.theoretical_max_error_pct || 50.0;
+    errPctEl.textContent = `${pt.dgim_p1_error_pct}% (Bound: ≤${bound}%)`;
+  }
+}
+
+function stepReplay(delta) {
+  if (!state.activeReplayData || !state.activeReplayData.points) return;
+  const maxIdx = state.activeReplayData.points.length - 1;
+  const newIdx = Math.max(0, Math.min(maxIdx, state.replayIndex + delta));
+  state.replayIndex = newIdx;
+  const slider = document.getElementById('momentum-scrubber');
+  if (slider) slider.value = newIdx;
+  renderMomentumSnapshot(newIdx);
+  drawMomentumCanvas();
 }
 
 function drawMomentumCanvas() {
@@ -375,42 +829,114 @@ function drawMomentumCanvas() {
   if (!canvas || !state.activeReplayData) return;
   const ctx = canvas.getContext('2d');
   const curve = state.activeReplayData.curve;
+  if (!curve || curve.length === 0) return;
 
-  const w = canvas.width = canvas.parentElement.clientWidth;
+  const parentWidth = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const w = canvas.width = Math.max(300, parentWidth || canvas.clientWidth || 700);
   const h = canvas.height = 280;
 
   ctx.clearRect(0, 0, w, h);
 
-  // Zero-line (Center)
   const zeroY = h / 2;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  const maxPoints = Math.max(1, curve.length - 1);
+  const maxM = Math.max(3.5, ...curve.map(c => Math.abs(c.momentum || 0)));
+
+  // Grid background: subtle horizontal guide lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
   ctx.lineWidth = 1;
+  [-2, -1, 1, 2].forEach(level => {
+    const y = zeroY - (level / maxM) * (h / 2 - 25);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  });
+
+  // Zero-line (Center / Neutral Momentum)
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
   ctx.beginPath();
   ctx.moveTo(0, zeroY);
   ctx.lineTo(w, zeroY);
   ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Draw curve
+  // Labels for players
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = 'rgba(0, 242, 254, 0.7)';
+  ctx.fillText(`▲ ${state.activeReplayData.p1 || 'Player 1'} Advantage`, 12, 20);
+  ctx.fillStyle = 'rgba(255, 51, 102, 0.7)';
+  ctx.fillText(`▼ ${state.activeReplayData.p2 || 'Player 2'} Advantage`, 12, h - 12);
+
+  // Gradient fill under the curve (Player 1 Advantage - Cyan)
+  ctx.save();
   ctx.beginPath();
-  const maxM = 3.5;
+  ctx.moveTo(0, zeroY);
   curve.forEach((c, i) => {
-    const x = (i / (curve.length - 1)) * w;
-    const y = zeroY - (c.momentum / maxM) * (h / 2 - 20);
+    const x = (i / maxPoints) * w;
+    const y = zeroY - (c.momentum / maxM) * (h / 2 - 25);
+    ctx.lineTo(x, Math.min(zeroY, y));
+  });
+  ctx.lineTo(w, zeroY);
+  ctx.closePath();
+  const gradP1 = ctx.createLinearGradient(0, 25, 0, zeroY);
+  gradP1.addColorStop(0, 'rgba(0, 242, 254, 0.22)');
+  gradP1.addColorStop(1, 'rgba(0, 242, 254, 0.0)');
+  ctx.fillStyle = gradP1;
+  ctx.fill();
+  ctx.restore();
+
+  // Gradient fill under the curve (Player 2 Advantage - Coral)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, zeroY);
+  curve.forEach((c, i) => {
+    const x = (i / maxPoints) * w;
+    const y = zeroY - (c.momentum / maxM) * (h / 2 - 25);
+    ctx.lineTo(x, Math.max(zeroY, y));
+  });
+  ctx.lineTo(w, zeroY);
+  ctx.closePath();
+  const gradP2 = ctx.createLinearGradient(0, zeroY, 0, h - 25);
+  gradP2.addColorStop(0, 'rgba(255, 51, 102, 0.0)');
+  gradP2.addColorStop(1, 'rgba(255, 51, 102, 0.22)');
+  ctx.fillStyle = gradP2;
+  ctx.fill();
+  ctx.restore();
+
+  // Main Momentum Stroke Line
+  ctx.beginPath();
+  curve.forEach((c, i) => {
+    const x = (i / maxPoints) * w;
+    const y = zeroY - (c.momentum / maxM) * (h / 2 - 25);
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
-
   ctx.strokeStyle = '#00f2fe';
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2.2;
   ctx.stroke();
 
-  // Current playback marker line
-  const curX = (state.replayIndex / (curve.length - 1)) * w;
+  // Current playback marker line & indicator dot
+  const curIndex = Math.max(0, Math.min(curve.length - 1, state.replayIndex));
+  const curX = (curIndex / maxPoints) * w;
+  const curM = curve[curIndex] ? curve[curIndex].momentum : 0;
+  const curY = zeroY - (curM / maxM) * (h / 2 - 25);
+
   ctx.strokeStyle = '#ff3366';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(curX, 0);
   ctx.lineTo(curX, h);
+  ctx.stroke();
+
+  // Current point marker circle
+  ctx.beginPath();
+  ctx.arc(curX, curY, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = '#ffaa00';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 }
 
@@ -431,7 +957,8 @@ function toggleReplayPlay() {
         return;
       }
       state.replayIndex++;
-      document.getElementById('momentum-scrubber').value = state.replayIndex;
+      const slider = document.getElementById('momentum-scrubber');
+      if (slider) slider.value = state.replayIndex;
       renderMomentumSnapshot(state.replayIndex);
       drawMomentumCanvas();
     }, 180);
@@ -571,6 +1098,9 @@ async function loadRivalryNetwork() {
     }
 
     drawNetworkSVG();
+    if (data.nodes && data.nodes.length > 0) {
+      inspectNetworkNode(data.nodes[0].id);
+    }
   } catch (err) {
     console.error('Error loading rivalry network:', err);
   }
@@ -635,9 +1165,24 @@ function drawNetworkSVG() {
 }
 
 function inspectNetworkNode(playerId) {
+  if (!state.networkData || !state.networkData.nodes) return;
   const node = state.networkData.nodes.find(n => n.id === playerId);
   if (!node) return;
-  alert(`Player: ${node.label}\nTotal Matches: ${node.total_matches}\nPageRank: ${node.pagerank}\nLouvain Cluster: ${node.community}`);
+
+  setSafeText('inspect-node-name', node.label);
+  setSafeText('inspect-node-pagerank', node.pagerank);
+  setSafeText('inspect-node-betweenness', node.betweenness);
+  setSafeText('inspect-node-degree', node.degree);
+  setSafeText('inspect-node-matches', node.total_matches);
+
+  const pillEl = document.getElementById('inspect-node-cluster-pill');
+  if (pillEl) {
+    pillEl.textContent = `Cluster ${node.community}`;
+    const colors = ["#00F2FE", "#FF007F", "#7928CA", "#00FFA3", "#FF8000", "#FFD700", "#4FACFE"];
+    const col = colors[node.community % colors.length];
+    pillEl.style.borderColor = col;
+    pillEl.style.color = col;
+  }
 }
 
 // ============================================================================
@@ -654,14 +1199,27 @@ async function loadStreamIntegrity() {
   }
 }
 
+function formatProbability(val) {
+  if (val === null || val === undefined || isNaN(val)) return '0.0';
+  const num = Number(val);
+  if (num === 0) return '0.0';
+  if (num < 1e-4) return num.toExponential(4);
+  return num.toFixed(6);
+}
+
 function renderStreamStatus(data) {
-  const bf = data.bloom_filter;
-  document.getElementById('stream-inserted-n').textContent = bf.inserted_items_n;
-  document.getElementById('stream-bits-density').textContent = `${bf.bit_density_pct}% (${bf.bits_set}/${bf.bit_array_size_m} bits)`;
-  document.getElementById('stream-theoretical-fp').textContent = bf.theoretical_fp_prob;
-  document.getElementById('stream-empirical-fp').textContent = `${bf.empirical_fp_rate} (${bf.false_positives_detected} detected)`;
-  document.getElementById('stream-duplicates-rejected').textContent = bf.duplicate_rejections;
-  document.getElementById('stream-mongo-docs').textContent = `${data.mongo_persisted_events} Docs`;
+  if (!data) return;
+  const bf = data.bloom_filter || {};
+  setSafeText('stream-inserted-n', bf.inserted_items_n ?? '-');
+  setSafeText('stream-bits-density', `${bf.bit_density_pct ?? 0}% (${bf.bits_set ?? 0}/${bf.bit_array_size_m ?? 8192} bits)`);
+  setSafeText('stream-theoretical-fp', formatProbability(bf.theoretical_fp_prob));
+  const negQueries = bf.negative_queries_tested ?? (bf.false_positives_detected ?? 0);
+  const empiricalText = (negQueries > 0)
+    ? `${formatProbability(bf.empirical_fp_rate)} (${bf.false_positives_detected ?? 0} detected / ${negQueries} tested)`
+    : `${formatProbability(bf.empirical_fp_rate)} (${bf.false_positives_detected ?? 0} detected)`;
+  setSafeText('stream-empirical-fp', empiricalText);
+  setSafeText('stream-duplicates-rejected', bf.duplicate_rejections ?? 0);
+  setSafeText('stream-mongo-docs', `${data.mongo_persisted_events ?? 0} Docs`);
 }
 
 async function streamStep(count = 5) {
@@ -678,7 +1236,6 @@ async function injectDuplicateEvent() {
   try {
     const res = await fetch(`${API_BASE}/api/stream/inject-duplicate`, { method: 'POST' });
     const data = await res.json();
-    alert(`Injected Previously Streamed Event: ${data.injected_event_id}\nBloom Filter Flagged: ${data.bloom_detected_duplicate ? 'TRUE (DUPLICATE CAUGHT)' : 'FALSE'}`);
     loadStreamIntegrity();
   } catch (err) {
     console.error('Error injecting duplicate:', err);
@@ -691,7 +1248,6 @@ async function resetStreamFilter() {
   try {
     const res = await fetch(`${API_BASE}/api/stream/reset?m=${m}&k=${k}`, { method: 'POST' });
     await res.json();
-    alert(`Bloom filter reset with m=${m} bits, k=${k} hash functions.`);
     loadStreamIntegrity();
   } catch (err) {
     console.error('Error resetting stream filter:', err);
@@ -705,20 +1261,44 @@ async function loadRecentStreamEvents() {
     const tbody = document.getElementById('stream-events-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = (data.events || []).map(ev => `
-      <tr>
-        <td><code>${ev.event_id}</code></td>
-        <td>${ev.players}</td>
-        <td><strong style="color:var(--cyan-primary);">${ev.score}</strong></td>
-        <td>Server ${ev.server}</td>
-        <td>${ev.serve_dir}</td>
-        <td>
-          <span class="status-pill" style="color: ${ev.bloom_suspected_duplicate ? 'var(--neon-coral)' : 'var(--neon-emerald)'}">
-            ${ev.bloom_suspected_duplicate ? '⚠️ DUPLICATE' : '✓ VERIFIED NEW'}
-          </span>
-        </td>
-      </tr>
-    `).join('');
+    if (!data.events || data.events.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            No stream events in current window. Click "⚡ Step 5 Points" to ingest point events.
+          </td>
+        </tr>
+      `;
+      const mongoJsonEl = document.getElementById('mongo-stream-json-preview');
+      if (mongoJsonEl) {
+        mongoJsonEl.textContent = JSON.stringify({ status: "Waiting for point stream events..." }, null, 2);
+      }
+      return;
+    }
+
+    tbody.innerHTML = data.events.map(ev => {
+      const isRejected = ev.duplicate_rejected || (ev.bloom_suspected_duplicate && !ev.persisted);
+      const isFP = ev.is_false_positive;
+      const statusLabel = isRejected ? '⚠️ DUPLICATE REJECTED' :
+                          isFP ? '⚠️ FALSE POSITIVE' :
+                          ev.bloom_suspected_duplicate ? '⚠️ DUPLICATE' : '✓ VERIFIED NEW';
+      const statusColor = (isRejected || ev.bloom_suspected_duplicate) ? 'var(--neon-coral)' :
+                          isFP ? 'var(--neon-coral)' : 'var(--neon-emerald)';
+      return `
+        <tr>
+          <td><code>${ev.event_id}</code></td>
+          <td>${ev.players}</td>
+          <td><strong style="color:var(--cyan-primary);">${ev.score}</strong></td>
+          <td>Server ${ev.server}</td>
+          <td>${ev.serve_dir}</td>
+          <td>
+            <span class="status-pill" style="color: ${statusColor}">
+              ${statusLabel}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     // Update raw mongo preview
     const mongoJsonEl = document.getElementById('mongo-stream-json-preview');
@@ -743,3 +1323,10 @@ function toggleAutoStream() {
     }, 1000);
   }
 }
+
+// Window resize handler to maintain sharp responsive canvas render
+window.addEventListener('resize', () => {
+  if (state.currentTab === 'momentum' && state.activeReplayData) {
+    drawMomentumCanvas();
+  }
+});

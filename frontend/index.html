@@ -24,7 +24,8 @@
     </div>
     <div class="system-status-pills">
       <div class="status-pill"><span class="status-dot"></span><span>PySpark Distributed Engine</span></div>
-      <div class="status-pill"><span class="status-dot"></span><span id="mongo-engine-status">MongoDB Document Store</span></div>
+      <div class="status-pill"><span class="status-dot" id="mongo-status-dot"></span><span id="mongo-engine-status">MongoDB Document Store</span></div>
+      <div class="status-pill"><span class="status-dot" id="ml-status-dot"></span><span id="ml-engine-status">ML: Random Forest (67.9% Acc)</span></div>
       <div class="status-pill"><span>ATP Match Charting Project</span></div>
     </div>
   </header>
@@ -32,6 +33,7 @@
   <!-- Navigation Tabs -->
   <nav class="nav-tabs">
     <button class="tab-btn active" data-tab="overview">📊 System Overview</button>
+    <button class="tab-btn" data-tab="match-predictor">🤖 ML Match Predictor</button>
     <button class="tab-btn" data-tab="player-lab">🧬 Player Intelligence Lab</button>
     <button class="tab-btn" data-tab="momentum">⚡ Match Momentum</button>
     <button class="tab-btn" data-tab="serve-strategy">🎾 Serve Strategy</button>
@@ -110,6 +112,119 @@
             </ul>
           </div>
         </div>
+      </div>
+      <!-- Storage & Machine Learning Infrastructure -->
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 class="card-title" style="margin: 0;">MongoDB Storage Health & Diagnostics</h3>
+            <span id="overview-mongo-badge" class="confidence-tag confidence-high">Active</span>
+          </div>
+          <div style="font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary);">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Active Storage Engine:</span>
+              <strong id="diag-mongo-engine" style="color: var(--cyan-primary); font-family: var(--font-mono);">Document Store</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Cluster Hostname:</span>
+              <span id="diag-mongo-cluster" style="font-family: var(--font-mono); color: var(--text-primary);">tennisbda.ryaeljl.mongodb.net</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Database / Namespace:</span>
+              <span id="diag-mongo-db" style="font-family: var(--font-mono); color: var(--text-primary);">rallyiq_tennis</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Ping Telemetry / Health:</span>
+              <span id="diag-mongo-ping" style="font-family: var(--font-mono); color: var(--neon-emerald);">Connected (admin.ping OK)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0;">
+              <span>Security & Transport:</span>
+              <span style="color: var(--neon-emerald);">TLS Verified via certifi CA bundle (Masked URI)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 class="card-title" style="margin: 0;">Machine Learning Model Benchmark</h3>
+            <span class="confidence-tag confidence-high">Trained & Ready</span>
+          </div>
+          <div style="font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary);">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Supervised Classifier:</span>
+              <strong id="benchmark-ml-algo" style="color: var(--cyan-primary);">RandomForest (100 Trees, max_depth=6)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Held-Out Test Accuracy:</span>
+              <span id="benchmark-ml-acc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">67.94% (Baseline LR: 67.28%)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Held-Out Test ROC-AUC:</span>
+              <span id="benchmark-ml-auc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">0.7505 (Baseline LR: 0.7350)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
+              <span>Chronological Splits:</span>
+              <span id="benchmark-ml-splits" style="font-family: var(--font-mono);">70% Train / 15% Val / 15% Test (2010–2026)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0;">
+              <span>Target Leakage Prevention:</span>
+              <span style="color: var(--neon-emerald);">Zero-leakage pre-match chronological vectors</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         ML MATCH PREDICTOR
+         =================================================================== -->
+    <section id="match-predictor" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🤖 Machine Learning ATP Match Winner Predictor</h2>
+          <p class="section-desc">Supervised pre-match outcome prediction trained on 5,569 verified ATP matches with chronological split validation and zero target leakage.</p>
+        </div>
+      </div>
+
+      <!-- Matchup Selector Card -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 class="card-title">Setup Head-to-Head Prediction Matchup</h3>
+        <div class="control-bar" style="margin-bottom: 0;">
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Player A</label><br>
+            <select id="predict-player-a" style="min-width: 220px;"></select>
+          </div>
+          <div style="align-self: flex-end;">
+            <button class="btn btn-secondary" id="btn-predict-swap" type="button" title="Swap Player Positions">⇄ Swap</button>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Player B</label><br>
+            <select id="predict-player-b" style="min-width: 220px;"></select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Surface</label><br>
+            <select id="predict-surface">
+              <option value="Hard">Hard Court</option>
+              <option value="Clay">Clay Court</option>
+              <option value="Grass">Grass Court</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Match Format</label><br>
+            <select id="predict-best-of">
+              <option value="3">Best of 3 Sets</option>
+              <option value="5">Best of 5 Sets (Grand Slam)</option>
+            </select>
+          </div>
+          <div style="align-self: flex-end;">
+            <button class="btn" id="btn-run-prediction" type="button">⚡ Predict Matchup</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prediction Output Container -->
+      <div id="prediction-results-container">
+        <!-- Rendered dynamically upon prediction -->
       </div>
     </section>
 
@@ -245,9 +360,9 @@
             <span id="momentum-swings-count" class="status-pill" style="margin-top: 4px; display: inline-block;"></span>
           </div>
           <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary" onclick="renderMomentumSnapshot(Math.max(0, state.replayIndex - 1))">◀ Step</button>
+            <button class="btn btn-secondary" onclick="stepReplay(-1)" title="Step back one point">◀ Step</button>
             <button id="momentum-play-btn" class="btn" onclick="toggleReplayPlay()">▶ Play</button>
-            <button class="btn btn-secondary" onclick="renderMomentumSnapshot(Math.min(state.activeReplayData?.points.length - 1, state.replayIndex + 1))">Step ▶</button>
+            <button class="btn btn-secondary" onclick="stepReplay(1)" title="Step forward one point">Step ▶</button>
           </div>
         </div>
 
@@ -294,7 +409,7 @@
 
         <div class="card">
           <h3 class="card-title">DGIM Sliding-Window Bucket Hierarchy</h3>
-          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+          <div id="dgim-description-text" style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
             Counting Player 1 point wins in sliding window (N=40) using power-of-two buckets (O(log² N) memory):
           </div>
           <div id="dgim-bucket-display" class="bucket-chain" style="margin-bottom: 1rem;">
@@ -548,6 +663,21 @@
         </div>
 
         <div class="card">
+          <!-- Inline Selected Player Inspector Panel -->
+          <div id="network-node-inspector" style="background: rgba(8, 14, 28, 0.85); border: 1px solid var(--border-cyan); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem;">
+              <span style="font-size: 0.75rem; text-transform: uppercase; font-family: var(--font-mono); color: var(--cyan-primary);">Selected Player Network Profile</span>
+              <span id="inspect-node-cluster-pill" class="status-pill" style="font-size: 0.72rem;">Cluster</span>
+            </div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;" id="inspect-node-name">Select any player node</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; font-size: 0.8rem; color: var(--text-secondary);">
+              <div>PageRank Centrality: <strong id="inspect-node-pagerank" style="color: var(--neon-emerald); font-family: var(--font-mono);">-</strong></div>
+              <div>Betweenness Centrality: <strong id="inspect-node-betweenness" style="color: var(--cyan-primary); font-family: var(--font-mono);">-</strong></div>
+              <div>Rivalry Degree: <strong id="inspect-node-degree" style="color: #fff; font-family: var(--font-mono);">-</strong></div>
+              <div>Total Matches Charted: <strong id="inspect-node-matches" style="color: #fff; font-family: var(--font-mono);">-</strong></div>
+            </div>
+          </div>
+
           <h3 class="card-title">Louvain Community Clusters</h3>
           <div id="network-cluster-legend" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
             <!-- Clusters rendered dynamically -->
@@ -572,7 +702,7 @@
       <div class="section-header">
         <div>
           <h2 class="section-title">Stream Integrity Monitor</h2>
-          <p class="section-desc">Incremental match-point stream processing with Kirsch-Mitzenmacher Bloom Filter, empirical false-positive validation, and MongoDB persistence.</p>
+          <p class="section-desc">Incremental match-point stream processing with Kirsch-Mitzenmacher Bloom Filter (probabilistic membership) and exact ground-truth set verification for empirical validation and MongoDB persistence.</p>
         </div>
       </div>
 
@@ -594,11 +724,11 @@
       </div>
 
       <!-- Stream KPIs -->
-      <div class="grid-4" style="margin-bottom: 1.5rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
         <div class="card kpi-card">
-          <div class="kpi-label">Inserted Events (n)</div>
+          <div class="kpi-label">Unique Inserted Events (n)</div>
           <div class="kpi-value" id="stream-inserted-n">0</div>
-          <div class="kpi-sub">Total point events processed</div>
+          <div class="kpi-sub">Unique items committed to Bloom filter & MongoDB</div>
         </div>
         <div class="card kpi-card">
           <div class="kpi-label">Bit Array Density</div>
@@ -606,14 +736,19 @@
           <div class="kpi-sub">Saturation of bit array m</div>
         </div>
         <div class="card kpi-card">
-          <div class="kpi-label">Theoretical False-Positive</div>
-          <div class="kpi-value" id="stream-theoretical-fp" style="font-size: 1.6rem;">0.000000</div>
-          <div class="kpi-sub">p = (1 - e^(-kn/m))^k</div>
+          <div class="kpi-label">Theoretical False-Positive Rate</div>
+          <div class="kpi-value" id="stream-theoretical-fp" style="font-size: 1.5rem;">0.0</div>
+          <div class="kpi-sub">Formula: p = (1 - e^(-kn/m))^k</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Empirical False-Positive Rate</div>
+          <div class="kpi-value" id="stream-empirical-fp" style="font-size: 1.2rem;">0.0</div>
+          <div class="kpi-sub">Evaluated on absent items vs exact set</div>
         </div>
         <div class="card kpi-card">
           <div class="kpi-label">Duplicates Caught</div>
           <div class="kpi-value" id="stream-duplicates-rejected" style="color: var(--neon-coral);">0</div>
-          <div class="kpi-sub">Rejected before insertion</div>
+          <div class="kpi-sub">Confirmed duplicates rejected before persistence</div>
         </div>
       </div>
 

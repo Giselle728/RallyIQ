@@ -47,24 +47,57 @@ class BloomFilter:
             hashes.append(pos)
         return hashes
 
-    def add(self, item: str) -> bool:
+    def is_exact_member(self, item: str) -> bool:
+        """Ground-truth exact check against the set of inserted items."""
+        return item in self.exact_set
+
+    def record_duplicate(self, item: str) -> None:
         """
-        Insert an item into the Bloom filter.
-        Returns True if item was already suspected to be present (potential duplicate).
+        Record a confirmed duplicate rejection without modifying n or exact_set.
+        Increments duplicate_reject_count and true_positive_count.
         """
-        was_present = self.contains(item)
-        if was_present:
-            self.duplicate_reject_count += 1
-            
+        self.duplicate_reject_count += 1
+        self.true_positive_count += 1
+        self.total_queries += 1
+
+    def commit_new_item(self, item: str) -> bool:
+        """
+        Safely commit a verified new unique item into the Bloom filter and exact set.
+        Increments n exactly once. Sets bits and adds to exact_set.
+        Returns True if item was a false positive prior to insertion.
+        """
+        if item in self.exact_set:
+            self.record_duplicate(item)
+            return False
+
+        is_fp = self.contains(item)
         hashes = self._get_hashes(item)
         for bit_idx in hashes:
             byte_idx = bit_idx // 8
             bit_offset = bit_idx % 8
             self.bit_array[byte_idx] |= (1 << bit_offset)
-            
-        self.n += 1
+
         self.exact_set.add(item)
-        return was_present
+        self.n += 1
+        return is_fp
+
+    def add(self, item: str) -> bool:
+        """
+        Insert an item into the Bloom filter with exact ground-truth verification.
+        Returns True if item was already a confirmed duplicate (rejected).
+        Returns False if item was a new item (even if false positive) and was inserted.
+        """
+        if item in self.exact_set:
+            self.record_duplicate(item)
+            return True
+
+        # Check if absent item triggers Bloom filter false positive
+        if self.contains(item):
+            self.false_positive_count += 1
+            self.total_queries += 1
+
+        self.commit_new_item(item)
+        return False
 
     def contains(self, item: str) -> bool:
         """Query if item is possibly in the set."""
@@ -78,7 +111,11 @@ class BloomFilter:
 
     def query_with_verification(self, item: str) -> Dict[str, Any]:
         """
-        Query item with ground-truth verification to detect empirical false positives.
+        Query item with ground-truth verification to detect empirical false positives
+        without altering the Bloom filter state or inserting the item.
+        Tracks query statistics correctly:
+        - If item is absent: negative query (True Negative or False Positive).
+        - If item is present: positive query (True Positive / Duplicate).
         """
         self.total_queries += 1
         bloom_result = self.contains(item)
@@ -97,6 +134,7 @@ class BloomFilter:
             "bloom_result": bloom_result,
             "exact_result": exact_result,
             "is_false_positive": is_false_positive,
+            "is_duplicate": exact_result,
             "theoretical_fp_rate": self.theoretical_fp_rate(),
             "empirical_fp_rate": self.empirical_fp_rate()
         }
@@ -110,45 +148,62 @@ class BloomFilter:
 
     def saturation(self) -> float:
         """Percentage of bit array set to 1."""
-        return (self.bits_set_count() / self.m) * 100.0
+        return (self.bits_set_count() / self.m) * 100.0 if self.m > 0 else 0.0
 
     def theoretical_fp_rate(self) -> float:
-        """Calculate theoretical false positive probability: p = (1 - e^(-kn/m))^k"""
-        if self.m == 0:
-            return 1.0
-        exponent = - (self.k * self.n) / float(self.m)
+        """
+        Calculate theoretical false positive probability: p = (1 - e^(-kn/m))^k
+        Returns raw float with full precision (not rounded to 6 decimal places).
+        Handles n=0 and edge cases safely.
+        """
+        if self.m <= 0 or self.k <= 0 or self.n <= 0:
+            return 0.0
+        exponent = - (float(self.k) * float(self.n)) / float(self.m)
         p = math.pow(1.0 - math.exp(exponent), self.k)
-        return round(min(1.0, max(0.0, p)), 6)
+        return float(min(1.0, max(0.0, p)))
 
     def empirical_fp_rate(self) -> float:
-        """Empirical false positive rate observed across all negative queries."""
+        """
+        Empirical false positive rate observed across all negative queries (queries on absent items).
+        Formula: FP / (FP + TN)
+        Duplicate queries (where exact_result is True) are strictly excluded from the denominator.
+        """
         negative_queries = self.false_positive_count + self.true_negative_count
         if negative_queries == 0:
             return 0.0
-        return round(self.false_positive_count / negative_queries, 6)
+        return float(self.false_positive_count / negative_queries)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Return diagnostic metrics of the Bloom filter."""
         bits_on = self.bits_set_count()
+        neg_queries = self.false_positive_count + self.true_negative_count
         return {
             "bit_array_size_m": self.m,
             "hash_functions_k": self.k,
             "inserted_items_n": self.n,
             "bits_set": bits_on,
-            "bit_density_pct": round((bits_on / self.m) * 100.0, 2),
+            "bit_density_pct": round((bits_on / self.m) * 100.0, 2) if self.m > 0 else 0.0,
             "theoretical_fp_prob": self.theoretical_fp_rate(),
             "empirical_fp_rate": self.empirical_fp_rate(),
             "false_positives_detected": self.false_positive_count,
             "duplicate_rejections": self.duplicate_reject_count,
             "exact_set_size": len(self.exact_set),
+            "negative_queries_tested": neg_queries,
+            "true_negatives": self.true_negative_count,
+            "true_positives": self.true_positive_count,
+            "total_queries": self.total_queries,
             "memory_bytes": len(self.bit_array)
         }
 
     def reset(self, m: Optional[int] = None, k: Optional[int] = None) -> None:
         """Reset the Bloom filter with optional new parameters."""
         if m is not None:
+            if m <= 0:
+                raise ValueError("m must be a positive integer.")
             self.m = m
         if k is not None:
+            if k <= 0:
+                raise ValueError("k must be a positive integer.")
             self.k = k
         self.bit_array = bytearray((self.m + 7) // 8)
         self.n = 0

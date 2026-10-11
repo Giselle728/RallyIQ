@@ -4,8 +4,10 @@ Paths, Big Data constants, PySpark settings, and MongoDB configs.
 """
 
 import os
+from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 DATA_RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 DATA_PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
 CACHE_DIR = os.path.join(BASE_DIR, "data", "stream_cache")

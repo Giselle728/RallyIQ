@@ -1,7 +1,7 @@
 {
   "dataset_name": "ATP Match Charting Project (Jeff Sackmann)",
   "raw_size_mb": 117.0,
-  "processed_size_mb": 12.17,
+  "processed_size_mb": 13.85,
   "total_raw_records": 1170566,
   "match_count": 7565,
   "point_count": 904128,
@@ -41,5 +41,10 @@
       "Charted by": 2,
       "Year": 0
     }
+  },
+  "winner_attribution": {
+    "verified_matches": 5569,
+    "unverified_matches": 1996,
+    "verified_percentage": 73.6
   }
 }

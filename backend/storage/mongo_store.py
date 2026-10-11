@@ -9,13 +9,31 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
+from urllib.parse import urlparse
+import certifi
 import pymongo
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, OperationFailure
 import mongomock
 
 from backend.config import MONGO_URI, MONGO_DB_NAME, MONGO_DISK_CACHE
 
 logger = logging.getLogger("rallyiq.mongo")
+
+def mask_mongo_uri(uri: str) -> str:
+    """Mask credentials in MongoDB connection string for safe logging."""
+    if not uri:
+        return ""
+    try:
+        parsed = urlparse(uri)
+        if parsed.username or parsed.password:
+            netloc = parsed.netloc
+            if "@" in netloc:
+                creds, host = netloc.split("@", 1)
+                masked_netloc = "****:****@" + host
+                return uri.replace(netloc, masked_netloc)
+        return uri
+    except Exception:
+        return "mongodb+srv://****:****@<masked-cluster>"
 
 class MongoStorage:
     _instance = None
@@ -32,8 +50,21 @@ class MongoStorage:
         self.uri = uri
         self.db_name = db_name
         self.is_live_mongo = False
+        self.is_atlas = "mongodb+srv" in uri or "mongodb.net" in uri
+        self.target_cluster = "localhost:27017"
+        self.connection_status = "unconnected"
+        self.connection_error = None
         self.client = None
         self.db = None
+
+        if self.uri:
+            try:
+                parsed = urlparse(self.uri)
+                if parsed.hostname:
+                    self.target_cluster = parsed.hostname
+            except Exception:
+                pass
+
         self._connect()
         self._setup_indexes()
         self._load_from_disk()
@@ -41,15 +72,42 @@ class MongoStorage:
 
     def _connect(self):
         try:
-            # Test live connection with 1.5s timeout
-            test_client = pymongo.MongoClient(self.uri, serverSelectionTimeoutMS=1500)
+            connect_kwargs: Dict[str, Any] = {
+                "serverSelectionTimeoutMS": 4000,
+                "connectTimeoutMS": 4000,
+                "socketTimeoutMS": 4000
+            }
+            # Add certifi CA bundle for Atlas TLS verification (never disable TLS)
+            if self.is_atlas or "ssl=true" in self.uri.lower() or "tls=true" in self.uri.lower():
+                connect_kwargs["tlsCAFile"] = certifi.where()
+
+            test_client = pymongo.MongoClient(self.uri, **connect_kwargs)
+            # Authenticate and ping cluster
             test_client.admin.command('ping')
+
             self.client = test_client
             self.db = self.client[self.db_name]
             self.is_live_mongo = True
-            logger.info(f"Connected to live MongoDB at {self.uri} ({self.db_name})")
-        except (ConnectionFailure, ServerSelectionTimeoutError, Exception) as e:
-            logger.warning(f"Live MongoDB not available ({e}). Using embedded Mongo engine with disk persistence.")
+            self.connection_status = "connected_atlas" if self.is_atlas else "connected_local"
+            self.connection_error = None
+            logger.info(f"Connected to live MongoDB cluster [{self.target_cluster}] (database: {self.db_name})")
+        except Exception as e:
+            raw_err = str(e)
+            # Mask any credentials that might appear in error strings
+            safe_err = raw_err
+            if "@" in safe_err and ":" in safe_err:
+                try:
+                    p = urlparse(self.uri)
+                    if p.password and p.password in safe_err:
+                        safe_err = safe_err.replace(p.password, "********")
+                except Exception:
+                    pass
+            self.connection_error = safe_err
+            self.connection_status = "fallback_mock"
+            logger.warning(
+                f"Live MongoDB cluster [{self.target_cluster}] not available ({safe_err[:180]}). "
+                "Engaging embedded Document Store (mongomock with disk sync)."
+            )
             self.client = mongomock.MongoClient()
             self.db = self.client[self.db_name]
             self.is_live_mongo = False
@@ -118,15 +176,68 @@ class MongoStorage:
             "stream_events": self.db.stream_events.count_documents({}),
             "stream_metrics": self.db.stream_metrics.count_documents({})
         }
+        engine_name = (
+            "MongoDB Atlas (Cloud Cluster)" if self.is_live_mongo and self.is_atlas
+            else "MongoDB Community Server" if self.is_live_mongo
+            else "Embedded Document Store (mongomock)"
+        )
         return {
-            "engine": "MongoDB Community Server" if self.is_live_mongo else "Embedded Document Store (mongomock)",
+            "engine": engine_name,
             "connected": True,
             "is_live": self.is_live_mongo,
+            "is_atlas": self.is_atlas,
+            "cluster": self.target_cluster,
             "database": self.db_name,
+            "connection_status": self.connection_status,
+            "connection_error": self.connection_error,
             "collections": collections,
             "total_documents": sum(collections.values()),
             "indexes_active": True
         }
+
+    def test_connection(self) -> Dict[str, Any]:
+        """Safely verify active MongoDB connectivity without exposing credentials."""
+        if self.is_live_mongo and self.client:
+            try:
+                ping_res = self.client.admin.command('ping')
+                dbs = self.client.list_database_names()
+                cols = self.db.list_collection_names()
+                return {
+                    "status": "healthy",
+                    "engine": "MongoDB Atlas" if self.is_atlas else "MongoDB Local",
+                    "cluster": self.target_cluster,
+                    "database": self.db_name,
+                    "is_live": True,
+                    "ping": bool(ping_res.get("ok", 0)),
+                    "accessible_databases": dbs,
+                    "active_collections": cols,
+                    "message": f"Verified live connection to {self.target_cluster}"
+                }
+            except Exception as e:
+                return {
+                    "status": "degraded",
+                    "engine": "MongoDB Atlas (Ping Failed)",
+                    "cluster": self.target_cluster,
+                    "database": self.db_name,
+                    "is_live": False,
+                    "error": str(e)[:200],
+                    "message": "Live connection was initialized but command ping failed."
+                }
+        else:
+            return {
+                "status": "fallback_mock",
+                "engine": "Embedded Document Store (mongomock)",
+                "cluster": self.target_cluster,
+                "database": self.db_name,
+                "is_live": False,
+                "connection_status": self.connection_status,
+                "connection_error": self.connection_error,
+                "disk_persisted": os.path.exists(MONGO_DISK_CACHE),
+                "message": (
+                    f"Live cluster '{self.target_cluster}' unreachable. "
+                    "Running with embedded mongomock engine and disk persistence."
+                )
+            }
 
 # Singleton instance
 mongo_store = MongoStorage()

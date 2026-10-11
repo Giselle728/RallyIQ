@@ -14,7 +14,8 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 import pandas as pd
-from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel, Field
+from fastapi import FastAPI, Query, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -30,6 +31,13 @@ from backend.algorithms.dgim import MomentumAnalyzer
 from backend.algorithms.bloom_filter import BloomFilter
 from backend.algorithms.recommender import recommender
 from backend.algorithms.graph_analytics import rivalry_network
+from backend.ml.predictor import predictor
+
+class MatchPredictionRequest(BaseModel):
+    player_a: str = Field(..., description="First ATP player name")
+    player_b: str = Field(..., description="Second ATP player name")
+    surface: str = Field("Hard", description="Surface: Hard, Clay, Grass")
+    best_of: int = Field(3, description="Best of 3 or 5 sets")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("rallyiq.api")
@@ -108,10 +116,12 @@ def startup_event():
 def get_overview():
     """Return dataset size, match/point counts, engine stats, and pipeline status."""
     mongo_stats = mongo_store.get_stats()
+    mongo_health = mongo_store.test_connection()
     surfaces = dataset_report_cache.get("surfaces", {"Hard": 4851, "Clay": 1877, "Grass": 837})
     total_matches = dataset_report_cache.get("match_count", 7565)
     total_points = dataset_report_cache.get("point_count", 904128)
     raw_size = dataset_report_cache.get("raw_size_mb", 117.0)
+    ml_status = predictor.get_status()
     
     return {
         "platform": "RallyIQ: Big Data Tennis Intelligence Platform",
@@ -122,10 +132,13 @@ def get_overview():
         "total_points": total_points,
         "surfaces": surfaces,
         "storage": mongo_stats,
+        "storage_health": mongo_health,
+        "ml_predictor": ml_status,
         "engine_architecture": {
             "ingestion": "Python 3.10 Pandas (Schema validation, deduplication, type casting)",
             "batch_processing": "Apache PySpark local[2] (Distributed joins & aggregations)",
             "storage_layer": mongo_stats["engine"],
+            "machine_learning": "Supervised Random Forest Classifier with Zero-Leakage Pre-Match Features",
             "streaming": "Incremental Stream with Kirsch-Mitzenmacher Bloom Filter",
             "sliding_window": "Datar-Gionis-Indyk-Motwani (DGIM) + EWMA Momentum",
             "similarity": "Normalized Multi-Feature Cosine Similarity",
@@ -312,9 +325,8 @@ def replay_match_momentum(
     match_points_dicts = pts.to_dict(orient="records")
     result = analyzer.replay_match(match_points_dicts, p1, p2)
     
-    # Pre-select initial snapshot (e.g. at 50% of the match)
-    snapshot_idx = min(len(result["points"]) - 1, max(0, int(len(result["points"]) * 0.5)))
-    result["snapshot"] = result["points"][snapshot_idx] if result["points"] else {}
+    # Pre-select initial snapshot (point 0 at pre-match start)
+    result["snapshot"] = result["points"][0] if result["points"] else {}
     result["match_id"] = match_id
     result["metadata"] = match_meta
     return result
@@ -401,6 +413,8 @@ def get_stream_status():
 def step_stream(count: int = Query(5, description="Number of events to process")):
     """
     Ingest the next 'count' tennis point events through Bloom Filter and persist to MongoDB.
+    Confirmed duplicate events are rejected before database persistence.
+    Persistence failure is handled safely to keep Bloom Filter and database in sync.
     """
     global stream_event_pointer
     if not stream_events_cache:
@@ -417,11 +431,35 @@ def step_stream(count: int = Query(5, description="Number of events to process")
         
         event_key = event["event_id"]
         
-        # Test membership with Bloom Filter and exact verification
+        # 1. Query with verification against ground-truth set and Bloom filter
         verify_result = stream_bloom_filter.query_with_verification(event_key)
-        was_potential_duplicate = stream_bloom_filter.add(event_key)
-        
-        # MongoDB document persistence
+        is_already_present = verify_result["exact_result"]
+        bloom_suspected = verify_result["bloom_result"]
+        is_fp = verify_result["is_false_positive"]
+
+        if is_already_present:
+            # CONFIRMED DUPLICATE: Reject BEFORE performing persistence operation!
+            stream_bloom_filter.record_duplicate(event_key)
+            processed_batch.append({
+                "event_id": event_key,
+                "match_id": event["match_id"],
+                "point_number": event["point_number"],
+                "players": f"{event['player_1']} vs {event['player_2']}",
+                "score": event["score"],
+                "server": event["server"],
+                "winner": event["winner"],
+                "serve_dir": event["serve_dir"],
+                "is_ace": event["is_ace"],
+                "bloom_suspected_duplicate": True,
+                "is_false_positive": False,
+                "duplicate_rejected": True,
+                "persisted": False,
+                "status": "duplicate_rejected",
+                "verification": verify_result
+            })
+            continue
+
+        # 2. NEW UNIQUE EVENT: Persist to MongoDB first to prevent Bloom Filter / DB desync
         mongo_doc = {
             "event_id": event_key,
             "match_id": event["match_id"],
@@ -432,22 +470,46 @@ def step_stream(count: int = Query(5, description="Number of events to process")
             "winner": event["winner"],
             "serve_dir": event["serve_dir"],
             "is_ace": event["is_ace"],
-            "bloom_suspected_duplicate": was_potential_duplicate,
-            "is_false_positive": verify_result["is_false_positive"]
+            "bloom_suspected_duplicate": bloom_suspected,
+            "is_false_positive": is_fp
         }
         
-        # Insert into MongoDB stream_events
         try:
-            mongo_store.db.stream_events.update_one(
-                {"event_id": event_key},
-                {"$set": mongo_doc},
-                upsert=True
-            )
+            # Insert copy so mongo_doc is not mutated with non-serializable ObjectId
+            mongo_store.db.stream_events.insert_one(dict(mongo_doc))
+        except pymongo.errors.DuplicateKeyError:
+            # Concurrency race: another request inserted this event_id in between
+            stream_bloom_filter.record_duplicate(event_key)
+            processed_batch.append({
+                **mongo_doc,
+                "bloom_suspected_duplicate": True,
+                "is_false_positive": False,
+                "duplicate_rejected": True,
+                "persisted": False,
+                "status": "duplicate_rejected",
+                "verification": verify_result
+            })
+            continue
         except Exception as e:
-            logger.warning(f"Mongo insert error: {e}")
-            
+            logger.error(f"MongoDB persistence failure for event {event_key}: {e}")
+            # Do NOT commit to Bloom Filter if database persistence failed!
+            processed_batch.append({
+                **mongo_doc,
+                "duplicate_rejected": False,
+                "persisted": False,
+                "status": "persistence_error",
+                "error": str(e)
+            })
+            continue
+
+        # 3. Database persistence succeeded: safely commit to Bloom Filter
+        stream_bloom_filter.commit_new_item(event_key)
+        
         processed_batch.append({
             **mongo_doc,
+            "duplicate_rejected": False,
+            "persisted": True,
+            "status": "persisted_and_filtered",
             "verification": verify_result
         })
         
@@ -456,30 +518,46 @@ def step_stream(count: int = Query(5, description="Number of events to process")
     return {
         "processed_count": len(processed_batch),
         "events": processed_batch,
-        "bloom_status": stream_bloom_filter.get_metrics()
+        "bloom_status": stream_bloom_filter.get_metrics(),
+        "mongo_persisted_events": mongo_store.db.stream_events.count_documents({})
     }
 
 @app.post("/api/stream/inject-duplicate")
 def inject_duplicate():
     """
     Deliberately inject a previously seen point event to demonstrate duplicate detection.
+    Confirmed duplicate is rejected before persistence, so MongoDB is not modified and
+    Bloom filter 'n' is not incremented.
     """
-    if stream_event_pointer == 0:
+    if stream_bloom_filter.n == 0:
         step_stream(count=1)
         
-    # Pick a random or the most recent event
+    # Pick a random or the most recent event that was actually processed
     target_event = stream_events_cache[max(0, stream_event_pointer - 1)]
     event_key = target_event["event_id"]
     
-    # Query Bloom filter
-    verify_result = stream_bloom_filter.query_with_verification(event_key)
-    was_duplicate = stream_bloom_filter.add(event_key)
+    # Query Bloom filter and ground truth
+    bloom_detected = stream_bloom_filter.contains(event_key)
+    is_confirmed = stream_bloom_filter.is_exact_member(event_key)
+    
+    # Record duplicate rejection without incrementing n or writing to MongoDB
+    stream_bloom_filter.record_duplicate(event_key)
     
     return {
         "injected_event_id": event_key,
-        "bloom_detected_duplicate": was_duplicate,
-        "exact_verification": verify_result,
-        "bloom_status": stream_bloom_filter.get_metrics()
+        "bloom_detected_duplicate": bloom_detected,
+        "is_confirmed_duplicate": is_confirmed,
+        "duplicate_rejected": True,
+        "persisted": False,
+        "exact_verification": {
+            "item": event_key,
+            "bloom_result": bloom_detected,
+            "exact_result": is_confirmed,
+            "is_false_positive": False,
+            "is_duplicate": True
+        },
+        "bloom_status": stream_bloom_filter.get_metrics(),
+        "mongo_persisted_events": mongo_store.db.stream_events.count_documents({})
     }
 
 @app.post("/api/stream/reset")
@@ -491,10 +569,16 @@ def reset_stream(
     global stream_event_pointer
     stream_bloom_filter.reset(m=m, k=k)
     stream_event_pointer = 0
+    try:
+        mongo_store.db.stream_events.delete_many({})
+        mongo_store.persist_to_disk()
+    except Exception as e:
+        logger.warning(f"Error purging stream_events on reset: {e}")
     return {
         "status": "reset",
         "new_configuration": {"m": m, "k": k},
-        "bloom_status": stream_bloom_filter.get_metrics()
+        "bloom_status": stream_bloom_filter.get_metrics(),
+        "mongo_persisted_events": mongo_store.db.stream_events.count_documents({})
     }
 
 @app.get("/api/stream/events")
@@ -502,6 +586,56 @@ def get_recent_stream_events(limit: int = 15):
     """Fetch latest stream events persisted to MongoDB."""
     docs = list(mongo_store.db.stream_events.find({}, {"_id": 0}).sort("point_number", -1).limit(limit))
     return {"events": docs}
+
+# =============================================================================
+# 8. STORAGE HEALTH CHECK & MONGO DIAGNOSTICS
+# =============================================================================
+@app.get("/api/health/mongo")
+@app.get("/api/health/storage")
+def get_mongo_health():
+    """Verify live MongoDB Atlas connectivity, ping, and cluster status safely."""
+    return mongo_store.test_connection()
+
+# =============================================================================
+# 9. FEATURE 7: MACHINE LEARNING MATCH WINNER PREDICTION
+# =============================================================================
+@app.get("/api/predict/status")
+def get_predictor_status():
+    """Return ML model metadata, evaluation metrics, and operational readiness."""
+    return predictor.get_status()
+
+@app.get("/api/predict/match")
+def predict_match_get(
+    player_a: str = Query(..., description="First ATP player name"),
+    player_b: str = Query(..., description="Second ATP player name"),
+    surface: str = Query("Hard", description="Surface: Hard, Clay, Grass"),
+    best_of: int = Query(3, description="Best of 3 or 5 sets")
+):
+    """Predict ATP match winner and probability estimates using trained ML model."""
+    try:
+        return predictor.predict(player_a, player_b, surface=surface, best_of=best_of)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except RuntimeError as re:
+        raise HTTPException(status_code=503, detail=str(re))
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
+@app.post("/api/predict/match")
+def predict_match_post(payload: MatchPredictionRequest):
+    """Predict ATP match winner via JSON payload."""
+    try:
+        return predictor.predict(
+            payload.player_a, payload.player_b, surface=payload.surface, best_of=payload.best_of
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except RuntimeError as re:
+        raise HTTPException(status_code=503, detail=str(re))
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 # =============================================================================
 # FRONTEND STATIC FILES

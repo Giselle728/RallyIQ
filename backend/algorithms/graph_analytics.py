@@ -51,17 +51,20 @@ class RivalryNetwork:
             p_a = riv["player_a"]
             p_b = riv["player_b"]
             total = riv["total_matches"]
+            v_total = riv.get("verified_matches", riv["wins_a"] + riv["wins_b"])
             w_a = riv["wins_a"]
             w_b = riv["wins_b"]
             
             # Competitiveness / rivalry intensity: 1.0 when perfectly even (50-50), lower if lopsided
-            competitiveness = round((2.0 * min(w_a, w_b)) / max(1, total), 2)
+            competitiveness = round((2.0 * min(w_a, w_b)) / max(1, v_total), 2) if v_total > 0 else 0.5
             intensity = round(total * (0.5 + 0.5 * competitiveness), 2)
             
             self.G.add_edge(
                 p_a, p_b,
                 weight=total,
                 meetings=total,
+                verified_meetings=v_total,
+                unverified_meetings=riv.get("unverified_matches", total - v_total),
                 wins_a=w_a,
                 wins_b=w_b,
                 competitiveness=competitiveness,

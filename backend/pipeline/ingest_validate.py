@@ -198,19 +198,39 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
     rally_raw = pd.read_csv(RALLY_FILE)
     net_raw = pd.read_csv(NET_FILE)
     
+    # Determine verified match winners from terminal point records
+    logger.info("Computing verified match winners from point terminal states...")
+    last_pts = pts_clean.sort_values("Pt").groupby("match_id").last().reset_index()[["match_id", "PtWinner"]]
+    last_pts.rename(columns={"PtWinner": "terminal_pt_winner"}, inplace=True)
+    matches_clean = pd.merge(matches_clean, last_pts, on="match_id", how="left")
+    matches_clean["verified_winner"] = np.where(
+        matches_clean["terminal_pt_winner"] == 1, matches_clean["Player 1"],
+        np.where(matches_clean["terminal_pt_winner"] == 2, matches_clean["Player 2"], None)
+    )
+    matches_clean["winner_status"] = np.where(
+        matches_clean["verified_winner"].notna(), "Verified", "Unverified (Points Not Charted)"
+    )
+
     # Save cleaned master datasets for PySpark batch jobs
     clean_matches_path = os.path.join(DATA_PROCESSED_DIR, "clean_matches.parquet")
     clean_points_path = os.path.join(DATA_PROCESSED_DIR, "clean_points.parquet")
     clean_overview_path = os.path.join(DATA_PROCESSED_DIR, "clean_overview.parquet")
     clean_servedir_path = os.path.join(DATA_PROCESSED_DIR, "clean_serve_direction.parquet")
+    clean_rally_path = os.path.join(DATA_PROCESSED_DIR, "clean_rally.parquet")
+    clean_net_path = os.path.join(DATA_PROCESSED_DIR, "clean_net_points.parquet")
     
     matches_clean.to_parquet(clean_matches_path, index=False)
     pts_clean.to_parquet(clean_points_path, index=False)
     overview_clean.to_parquet(clean_overview_path, index=False)
     serve_clean.to_parquet(clean_servedir_path, index=False)
+    rally_raw.to_parquet(clean_rally_path, index=False)
+    net_raw.to_parquet(clean_net_path, index=False)
     
     # Calculate processed data size
-    processed_files = [clean_matches_path, clean_points_path, clean_overview_path, clean_servedir_path]
+    processed_files = [
+        clean_matches_path, clean_points_path, clean_overview_path,
+        clean_servedir_path, clean_rally_path, clean_net_path
+    ]
     processed_size_bytes = sum(os.path.getsize(f) for f in processed_files if os.path.exists(f))
     processed_size_mb = processed_size_bytes / (1024 * 1024)
     
@@ -237,6 +257,11 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
         },
         "missing_value_statistics": {
             "matches": matches_meta["missing_values"]
+        },
+        "winner_attribution": {
+            "verified_matches": int(matches_clean["verified_winner"].notna().sum()),
+            "unverified_matches": int(matches_clean["verified_winner"].isna().sum()),
+            "verified_percentage": round(int(matches_clean["verified_winner"].notna().sum()) / len(matches_clean) * 100, 1)
         }
     }
     
