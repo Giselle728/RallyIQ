@@ -10,11 +10,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 DATA_RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 DATA_PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
-CACHE_DIR = os.path.join(BASE_DIR, "data", "stream_cache")
 
 os.makedirs(DATA_RAW_DIR, exist_ok=True)
 os.makedirs(DATA_PROCESSED_DIR, exist_ok=True)
-os.makedirs(CACHE_DIR, exist_ok=True)
 
 # File names
 MATCHES_FILE = os.path.join(DATA_RAW_DIR, "charting-m-matches.csv")
@@ -42,10 +40,3 @@ SPARK_EXECUTOR_MEMORY = "1g"
 # MongoDB Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB_NAME = "rallyiq_tennis"
-
-# Stream & Bloom Filter Defaults
-DEFAULT_BLOOM_CAPACITY = 10000
-DEFAULT_BLOOM_BITS = 8192
-DEFAULT_BLOOM_HASHES = 5
-DEFAULT_DGIM_WINDOW = 40
-DEFAULT_MOMENTUM_ALPHA = 0.25

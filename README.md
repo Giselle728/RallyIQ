@@ -1,6 +1,6 @@
 # RallyIQ: Big Data Tennis Intelligence Platform
 
-A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genuine historical ATP men's tennis data** from the Match Charting Project. Implements distributed batch processing (PySpark), document storage with indexing (MongoDB), sliding-window stream counting (DGIM), probabilistic membership testing (Bloom filter), graph community detection (Louvain & PageRank), and multi-feature player similarity (Cosine metric).
+A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genuine historical ATP men's tennis data** from the Match Charting Project. Implements distributed batch processing (PySpark), document storage with indexing (MongoDB), graph community detection (Louvain & PageRank), multi-feature player similarity (Cosine metric), and zero-leakage supervised match outcome prediction (Random Forest).
 
 ---
 
@@ -23,18 +23,18 @@ A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genu
                 │
                 ▼
 [Document Storage Layer (MongoDB / mongomock fallback)]
-   • Collections: matches, player_profiles, stream_events, stream_metrics
-   • Compound indexes on match_id, players, surface, event_id
+   • Collections: matches, player_profiles
+   • Compound indexes on match_id, players, surface
                 │
                 ├──────────────────────────────────────┐
                 ▼                                      ▼
-[Real-Time Analytics Algorithms]             [FastAPI REST Backend]
-   • DGIM: O(log² N) sliding window              • 12 REST Endpoints
-   • EWMA Momentum Analyzer                      • Interactive CORS API
-   • Kirsch-Mitzenmacher Bloom Filter            • Parquet/JSON low-latency caches
-   • Cosine Playstyle Recommender                      │
-   • Louvain Community Detection (Q=0.46)              ▼
-   • PageRank Dominance Centrality           [Modern Dark Navy / Cyan UI]
+[Analytics & Machine Learning]               [FastAPI REST Backend]
+   • Random Forest Classifier (67.9% Acc)        • 14 REST Endpoints
+   • Cosine Playstyle Recommender                • Interactive CORS API
+   • Louvain Community Detection (Q=0.46)        • Parquet/JSON low-latency caches
+   • PageRank Dominance Centrality                     │
+                                                       ▼
+                                             [Modern Dark Navy / Cyan UI]
 ```
 
 ---
@@ -44,12 +44,10 @@ A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genu
 | # | Feature | Big Data Algorithm / Technology | Mathematical / Algorithmic Formulation |
 |---|---|---|---|
 | 1 | **Player Intelligence Lab** | Distributed Spark Aggregation | Distributed joins & MapReduce-style multi-key aggregations across surface & career dimensions |
-| 2 | **Match Momentum Analyzer** | DGIM (Datar-Gionis-Indyk-Motwani) + EWMA | Sliding-window bit counting with power-of-two bucket hierarchy, error $\le \frac{1}{2k} = 25\%$, $O(\log^2 N)$ memory |
-| 3 | **Serve Strategy Heatmap** | Directional & Fault Zone Clustering | Court spatial partitioning into Deuce/Ad service boxes (Wide, Body, T) with error trajectories |
-| 4 | **Playstyle Recommender** | Normalized Cosine Similarity | Z-score feature scaling across 8 performance dimensions, Cosine metric, explainable attribution |
-| 5 | **ATP Rivalry Network** | Louvain Community Detection & PageRank | Modularity optimization $Q = \sum [e_{ii} - a_i^2]$ and directed eigenvector dominance centrality |
-| 6 | **Stream Integrity Monitor** | Bloom Filter with Double Hashing | $k$ hash functions via $h_i(x) = (h_1(x) + i \cdot h_2(x)) \pmod m$, theoretical FP $p = (1 - e^{-kn/m})^k$ |
-| 7 | **ML Match Winner Predictor** | Random Forest vs. Logistic Regression | Chronological pre-match feature vectors (zero target leakage), symmetrical ensembling $P(A, B) = 1 - P(B, A)$ |
+| 2 | **Serve Strategy Heatmap** | Directional & Fault Zone Clustering | Court spatial partitioning into Deuce/Ad service boxes (Wide, Body, T) with error trajectories |
+| 3 | **Playstyle Recommender** | Normalized Cosine Similarity | Z-score feature scaling across 8 performance dimensions, Cosine metric, explainable attribution |
+| 4 | **ATP Rivalry Network** | Louvain Community Detection & PageRank | Modularity optimization $Q = \sum [e_{ii} - a_i^2]$ and directed eigenvector dominance centrality |
+| 5 | **ML Match Winner Predictor** | Random Forest vs. Logistic Regression | Chronological pre-match feature vectors (zero target leakage), symmetrical ensembling $P(A, B) = 1 - P(B, A)$ |
 
 ---
 
@@ -137,7 +135,7 @@ RallyIQ supports dual-mode persistent storage:
 
 ## Essential Run Commands
 
-### 1. Run Automated Test Suite (45 Tests)
+### 1. Run Automated Test Suite (23 Tests)
 ```bash
 ./venv/bin/python3 -m unittest discover -s backend/tests
 ```
@@ -176,23 +174,20 @@ rallyiq/
 │   ├── raw/                     # 117 MB Jeff Sackmann ATP Match Charting CSVs (7 files)
 │   └── processed/               # Cleaned Parquet + JSON artifacts produced by the pipeline
 ├── backend/
-│   ├── config.py                # Paths, Spark config, Mongo config, Bloom/DGIM defaults
+│   ├── config.py                # Paths, Spark config, Mongo config
 │   ├── pipeline/
 │   │   ├── ingest_validate.py   # Stage 1: ingestion, dedup, schema validation
 │   │   └── spark_processor.py   # Stage 2: distributed batch aggregations (PySpark)
 │   ├── algorithms/
-│   │   ├── dgim.py              # Feature 2: DGIM sliding window + EWMA momentum
-│   │   ├── bloom_filter.py      # Feature 6: Kirsch-Mitzenmacher Bloom filter
-│   │   ├── recommender.py       # Feature 4: Cosine playstyle similarity
-│   │   └── graph_analytics.py   # Feature 5: Louvain communities + PageRank
+│   │   ├── recommender.py       # Feature 3: Cosine playstyle similarity
+│   │   └── graph_analytics.py   # Feature 4: Louvain communities + PageRank
 │   ├── ml/
-│   │   ├── train_predictor.py   # Feature 7: zero-leakage training pipeline
-│   │   └── predictor.py         # Feature 7: inference engine (symmetrical ensembling)
+│   │   ├── train_predictor.py   # Feature 5: zero-leakage training pipeline
+│   │   └── predictor.py         # Feature 5: inference engine (symmetrical ensembling)
 │   ├── storage/mongo_store.py   # Singleton storage layer (Atlas / mongomock fallback)
 │   ├── api/
-│   │   ├── main.py              # FastAPI app: all 25 REST routes
-│   │   └── replay_indexer.py    # Builds replay + stream-sample indexes
-│   └── tests/                   # 45 unittest cases (algorithms / api / predictor)
+│   │   └── main.py              # FastAPI app: all REST routes
+│   └── tests/                   # 23 unittest cases (algorithms / api / predictor)
 ├── frontend/                    # Vanilla JS dark-theme SPA (index.html, app.js, style.css)
 ├── models/                      # match_predictor.joblib + model_metrics.json
 └── scripts/                     # run_pipeline.sh, start_server.sh, download_data.py
@@ -275,26 +270,13 @@ except Exception as e:
     return _run_local_batch_pipeline()
 ```
 
-### Stage 3 — Replay & Stream Indexing (`backend/api/replay_indexer.py`)
-
-- Picks the **top 50 matches by point count** and writes `replayable_matches.json` (feeds the Momentum tab dropdown).
-- Extracts **2,000 real point events from the 10 richest matches** into `stream_sample_events.json`. Each event gets a deterministic key:
-
-```python
-"event_id": f"{m_id}_pt_{row['Pt']}"   # e.g. 20231119-..._pt_142
-```
-
-This `event_id` is the exact string inserted into the Bloom filter by Feature 6.
-
 **Full pipeline flow:**
 ```
 ./scripts/run_pipeline.sh
-  ├─ [1/3] backend.pipeline.ingest_validate   → clean_*.parquet + dataset_report.json
-  ├─ [2/3] backend.pipeline.spark_processor   → player_aggregations.json,
-  │                                              rivalry_network.json, serve_strategy.json,
-  │                                              MongoDB matches/player_profiles
-  └─ [3/3] backend.api.replay_indexer         → replayable_matches.json,
-                                                 stream_sample_events.json
+  ├─ [1/2] backend.pipeline.ingest_validate   → clean_*.parquet + dataset_report.json
+  └─ [2/2] backend.pipeline.spark_processor   → player_aggregations.json,
+                                                 rivalry_network.json, serve_strategy.json,
+                                                 MongoDB matches/player_profiles
 ```
 
 ---
@@ -337,119 +319,7 @@ rivalry_network.json ───────────────────�
 
 ---
 
-## Feature 2 — Match Momentum Analyzer (DGIM + EWMA)
-
-**Endpoints:** `GET /api/matches/replayable`, `GET /api/momentum/replay`
-**Code:** `backend/algorithms/dgim.py` (407 lines)
-**UI tab:** ⚡ Match Momentum — interactive point-by-point replay with scrubber
-
-### Algorithm A: DGIM sliding-window counter (Datar–Gionis–Indyk–Motwani)
-
-Counts "1" bits (e.g. "player 1 won the point") inside the last *N* stream positions
-using only **O(log² N)** memory instead of storing the window.
-
-**Data structure:** an ordered list of buckets, each holding `(timestamp, size)` where
-**size is always a power of two**, with **at most k = 2 buckets of the same size**.
-
-**Insert (`add_bit`):**
-```python
-# expire anything strictly outside the window
-min_valid_time = t - self.window_size + 1
-self.buckets = [b for b in self.buckets if b.timestamp >= min_valid_time]
-if bit == 1:
-    self.buckets.insert(0, DGIMBucket(t, 1))   # new size-1 bucket
-    self._merge_buckets()                      # restore the invariant
-```
-
-**Merge rule** — when more than *k* buckets share a size, the two **oldest** merge into
-one of double the size (keeping the newer timestamp, which is the conservative choice):
-
-```python
-if len(matching_indices) > self.k:
-    idx1, idx2 = matching_indices[-2], matching_indices[-1]
-    merged_bucket = DGIMBucket(self.buckets[idx1].timestamp, size * 2)
-    self.buckets[idx1] = merged_bucket
-    self.buckets.pop(idx2)
-    size *= 2          # cascade to the next power of two
-```
-
-**Query (`count`)** — sum every fully-covered bucket, add **half of the oldest
-overlapping bucket** (it may be partially outside the window):
-
-```python
-if min_time <= 1:                       # window covers the whole stream → exact
-    est = sum(b.size for b in relevant_buckets)
-else:
-    est = sum(b.size for b in relevant_buckets[:-1])
-    oldest = relevant_buckets[-1]
-    est += oldest.size // 2 if oldest.size > 1 else oldest.size
-```
-
-**Error bound** returned by the code: `theoretical_max_error_pct = 100 / (2·(k−1))`,
-i.e. **50% worst-case for standard k = 2** (the theoretical DGIM guarantee; the unit
-tests additionally verify ≤ 25% on well-formed streams and 0% error while the stream is
-shorter than the window). A `raw_window` ground-truth list is maintained alongside so
-the API can report *estimated vs exact vs error %* live — the tests in
-`test_algorithms.py` assert bucket sizes are powers of two, ≤ k buckets per size, and
-that expired buckets never appear in a query.
-
-### Algorithm B: EWMA momentum with leverage weighting
-
-Each point gets a **leverage/impact weight** from real tennis situations
-(`evaluate_point_impact`):
-
-| Situation | Base weight |
-|---|---|
-| Match point won/saved | 4.0 |
-| Set point | 3.0 |
-| Break point (0-40/15-40/30-40/40-AD) | 2.5 |
-| Tiebreak point | 2.0 |
-| Game point (40-0/40-15/40-30/AD-40) | 1.5 |
-| Standard point | 1.0 |
-| + Ace or Double Fault bonus | +0.5 |
-
-Sign convention: `impact = +weight` if Player 1 won, `−weight` if Player 2 won.
-Then each player runs an independent **Exponentially Weighted Moving Average**:
-
-```python
-# M_{i,t} = alpha * impact_{i,t} + (1 - alpha) * M_{i,t-1}
-self.p1_momentum = (self.alpha * p1_imp) + ((1.0 - self.alpha) * self.p1_momentum)
-self.p2_momentum = (self.alpha * p2_imp) + ((1.0 - self.alpha) * self.p2_momentum)
-# net differential momentum
-self.momentum_score = self.p1_momentum - self.p2_momentum
-```
-
-Defaults: `alpha = 0.25` (editable in the UI, 0.05–0.9), `window_size = 40` points.
-Simultaneously two DGIM instances consume the same stream — `dgim_p1` gets a `1` when
-Player 1 wins the point, `dgim_p2` when Player 2 wins — giving approximate "points won
-in the last 40" per player with sub-linear memory.
-
-### Request flow
-
-```
-UI (match select, window, alpha)
-   └─▶ GET /api/momentum/replay?match_id=...&window_size=40&alpha=0.25
-         ├─▶ clean_points.parquet filtered by match_id, sorted by Pt
-         ├─▶ MomentumAnalyzer(alpha, window_size).replay_match(points, p1, p2)
-         │      ├─ point 0 = pre-match baseline snapshot
-         │      └─ for each point: leverage → EWMA update → DGIM add_bit → snapshot
-         ├─▶ momentum swings = count of sign changes in the momentum curve
-         └─▶ JSON: points[] (per-point snapshots), curve[] (chart series), metrics
-```
-
-The response embeds `dgim_p1_window_wins` (estimate), `dgim_p1_exact_wins` (ground
-truth) and `error_percentage` per point, so the UI can plot both series and show the
-approximation error live. `replay_match()` also counts **momentum swings** — every time
-the momentum curve crosses zero:
-
-```python
-if (curr_m > 0 and prev_m < 0) or (curr_m < 0 and prev_m > 0):
-    shifts += 1
-```
-
----
-
-## Feature 3 — Serve Strategy Heatmap
+## Feature 2 — Serve Strategy Heatmap
 
 **Endpoint:** `GET /api/serve-strategy?player=&surface=`
 **Code:** zone aggregation in `spark_processor.py`, serving in `main.py` (lines 337–358)
@@ -497,7 +367,7 @@ back to the first available surface and reports `available_surfaces` so the UI c
 
 ---
 
-## Feature 4 — Similar Playstyle Recommender (Cosine Similarity)
+## Feature 3 — Similar Playstyle Recommender (Cosine Similarity)
 
 **Endpoint:** `GET /api/recommender?player=&top_k=`
 **Code:** `backend/algorithms/recommender.py`
@@ -556,7 +426,7 @@ player_aggregations.json ──▶ median imputation ──▶ StandardScaler (z
 ```
 
 ---
-## Feature 5 — ATP Rivalry Network (Louvain Community Detection & PageRank)
+## Feature 4 — ATP Rivalry Network (Louvain Community Detection & PageRank)
 
 **Endpoints:** `GET /api/rivalry-network`, `GET /api/rivalry-details`
 **Code:** `backend/algorithms/graph_analytics.py`, edges built in `spark_processor.py`
@@ -618,90 +488,7 @@ rivalry_network.json ──▶ build weighted nx.Graph ──▶ Louvain (Q scor
 
 ---
 
-## Feature 6 — Stream Integrity Monitor (Bloom Filter + MongoDB Persistence)
-
-**Endpoints:** `GET /api/stream/status`, `POST /api/stream/step`, `POST /api/stream/inject-duplicate`,
-`POST /api/stream/reset`, `GET /api/stream/events`, `GET /api/health/mongo`
-**Code:** `backend/algorithms/bloom_filter.py`, stream loop in `main.py` (lines 412–588), storage in `mongo_store.py`
-**UI tab:** 🌐 Stream Integrity — live counters, FP-rate gauges, MongoDB inspector
-
-**How it works.** A pre-built index of 2,000 real point events (`event_id = "<match_id>_pt_<n>"`)
-is replayed through a streaming dedup pipeline. The goal is to catch duplicate events
-using sub-linear memory, persist each unique event, and *measure* how well the
-approximate structure behaves versus ground truth.
-
-### The Bloom filter (Kirsch–Mitzenmacher double hashing)
-
-A bit-array of `m` bits with `k` hash functions. To test membership, compute `k` bit
-positions and check whether all are set. RallyIQ derives the `k` positions from just
-two base hashes (the KM optimization) instead of `k` independent hashes:
-
-```python
-h1 = int(hashlib.md5(data).hexdigest(), 16)
-h2 = int(hashlib.sha256(data).hexdigest(), 16)
-pos = (h1 + i * h2) % self.m      # for i in 0..k-1
-```
-
-Insert = set all `k` bits; membership = all `k` bits set. Defaults `m=8192`, `k=5`.
-
-**Theoretical false-positive probability** (probability a *non-member* is wrongly reported
-as present):
-
-$$p = \left(1 - e^{-kn/m}\right)^{k}$$
-
-```python
-exponent = -(float(self.k) * float(self.n)) / float(self.m)
-p = math.pow(1.0 - math.exp(exponent), self.k)
-```
-
-**Empirical false-positive rate** is tracked separately by checking every query against an
-exact Python `set` ground truth, counting only *negative* queries (absent items):
-
-```python
-negative_queries = self.false_positive_count + self.true_negative_count
-return float(self.false_positive_count / negative_queries)
-```
-
-### Safe streaming: Bloom + DB consistency
-
-A naive pipeline commits to the filter *before* confirming the database write, which can
-desync the two. RallyIQ uses an **optimistic-verify-commit** protocol per event
-(`/api/stream/step`):
-
-```
-event = next_event
-1. query_with_verification(event_id)   # bloom answer + exact-set ground truth
-2. if exact_set confirms duplicate:
-       record_duplicate();  status="duplicate_rejected";  continue   # NOT persisted
-3. try persist to MongoDB stream_events:
-       on DB failure -> DO NOT commit to Bloom; status="persistence_error"; continue
-4. on DB success -> stream_bloom_filter.commit_new_item(event_id)    # only now set bits
-```
-
-Key invariant: **the Bloom filter is only updated after a successful DB write**, so the
-filter can never claim an item that isn't actually stored. `commit_new_item` returns
-whether the item *was* a false positive at insert time (bits set but item not in the
-exact set), letting the UI distinguish a true duplicate from a coincidence.
-
-**Reset** (`/api/stream/reset?m=&k=`) rebuilds the bit array with a caller-chosen `m`/`k`,
-resets the pointer, and purges `stream_events` — useful for re-running saturation
-experiments and watching the FP rate climb as `n` grows.
-
-**Flow:**
-```
-UI "Step 5" / "Start Live Stream" / "Inject Duplicate"
-   └─▶ POST /api/stream/step (count)
-         ├─▶ Bloom query + exact-set verification
-         ├─▶ duplicate? reject before write
-         ├─▶ persist unique event ──▶ mongo stream_events (or disk fallback)
-         ├─▶ commit_new_item (only on success)
-         └─▶ return per-event status + live bloom metrics + mongo count
-   └─▶ GET /api/health/mongo  (ping / engine / collection stats)
-```
-
----
-
-## Feature 7 — ML Match Winner Predictor (Random Forest vs Logistic Regression)
+## Feature 5 — ML Match Winner Predictor (Random Forest vs Logistic Regression)
 
 
 **Endpoints:** `GET /api/predict/status`, `GET /api/predict/match`, `POST /api/predict/match`
@@ -797,8 +584,7 @@ abstracts the document store behind one object, `mongo_store.db`. On init it:
 4. **Persists to disk** (`persist_to_disk()` → `data/processed/mongo_storage.json`) so the
    mock engine survives restarts; `_load_from_disk()` rehydrates on boot.
 
-Collections: `matches`, `points`, `player_profiles`, `stream_events`, `stream_metrics`,
-`prediction_audit`. `get_stats()` returns engine + per-collection counts;
+Collections: `matches`, `player_profiles`, `prediction_audit`. `get_stats()` returns engine + per-collection counts;
 `test_connection()` (`/api/health/mongo`) performs a live ping and lists databases/collections.
 
 ## Configuration (`backend/config.py`)
@@ -808,67 +594,50 @@ Loads `.env` (python-dotenv) and centralizes every path and tuning constant:
 ```python
 SPARK_MASTER = "local[2]"; SPARK_DRIVER_MEMORY = "1g"; SPARK_EXECUTOR_MEMORY = "1g"
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-DEFAULT_BLOOM_CAPACITY, DEFAULT_BLOOM_BITS, DEFAULT_BLOOM_HASHES = 10000, 8192, 5
-DEFAULT_DGIM_WINDOW, DEFAULT_MOMENTUM_ALPHA = 40, 0.25
 ```
 
 The `local[2]` / `1g` settings keep the whole pipeline under ~1.2 GB RAM on an 8 GB Mac.
 
-## REST API Reference (25 routes)
+## REST API Reference (14 routes)
 
 | Method & Path | Purpose | Key params |
 |---|---|---|
 | `GET /api/overview` · `/api/dashboard/overview` | Dataset size, matches/points, engine + ML status | — |
 | `GET /api/dashboard/surfaces` | Surface distribution + percentages | — |
 | `GET /api/dashboard/top-players` | Top players by matches | `limit` |
-| `GET /api/dashboard/recent-events` | Latest stream events | `limit` |
-| `GET /api/dashboard/live` | Live Bloom/DGIM/Mongo telemetry | — |
 | `GET /api/matches` | Paginated match records | `limit, offset, surface, player` |
 | `GET /api/players` | Qualified player list (dropdowns) | `query, min_matches` |
 | `GET /api/player-lab` | Two-player surface comparison + H2H | `player_a, player_b, surface` |
-| `GET /api/matches/replayable` | Matches available for momentum replay | — |
-| `GET /api/momentum/replay` | DGIM + EWMA point-by-point replay | `match_id, window_size, alpha` |
 | `GET /api/serve-strategy` | Court-zone placement + fault stats | `player, surface` |
 | `GET /api/recommender` | Cosine playstyle neighbours | `player, top_k` |
 | `GET /api/rivalry-network` | Louvain/PageRank graph payload | `min_meetings, top_n` |
 | `GET /api/rivalry-details` | Full head-to-head for a pair | `player_a, player_b` |
-| `GET /api/stream/status` | Bloom + stream metrics | — |
-| `POST /api/stream/step` | Ingest next N events (dedup + persist) | `count` |
-| `POST /api/stream/inject-duplicate` | Re-inject a seen event to demo dedup | — |
-| `POST /api/stream/reset` | Rebuild filter, purge stream events | `m, k` |
-| `GET /api/stream/events` | Recent persisted stream events | `limit` |
 | `GET /api/health/mongo` · `/api/health/storage` | Live connectivity + collection stats | — |
 | `GET /api/predict/status` | Model readiness + test metrics | — |
 | `GET /api/predict/match` | Predict winner (query string) | `player_a, player_b, surface, best_of` |
 | `POST /api/predict/match` | Predict winner (JSON body) | `MatchPredictionRequest` |
 | `GET /` · `/static/*` | Serves the frontend SPA + assets | — |
 
-## Test Suite (45 tests)
+## Test Suite (23 tests)
 
 Run with `./venv/bin/python3 -m unittest discover -s backend/tests`. Coverage:
-- **`test_algorithms.py`** — DGIM counting/power-of-two buckets/window expiry & error
-  bound; MomentumAnalyzer leverage/EWMA/momentum-swing behaviour; Bloom filter
-  (theoretical vs empirical FP, duplicate vs false-positive distinction, negative-query
-  accounting); recommender cosine ranking; Louvain + PageRank on the real graph.
-- **`test_api.py`** — endpoint response contracts (overview, player-lab, recommender,
-  serve-strategy, rivalry, stream, predict).
-- **`test_predictor.py`** — predictor artifact loading, probability symmetry
-  P(A,B)=1−P(B,A), confidence labelling; plus Mongo URI masking and health-check shape.
+- **`test_algorithms.py`** — Recommender cosine ranking; Louvain community modularity + PageRank on the real graph.
+- **`test_api.py`** — Endpoint response contracts (overview, player-lab, recommender, serve-strategy, rivalry, health, predict, root).
+- **`test_predictor.py`** — Predictor artifact loading, probability symmetry P(A,B)=1−P(B,A), confidence labelling; plus Mongo URI masking and health-check shape.
 
 ## End-to-End Data Flow (summary)
 
 ```
 raw ATP CSVs ─▶ ingest_validate ─▶ clean Parquet
-                    │                    │
-                    │                    └─▶ spark_processor ─▶ player_aggregations /
-                    │                                          rivalry_network / serve_strategy
-                    │                                          └─▶ MongoDB (+ disk mirror)
-                    └─▶ replay_indexer ─▶ replayable_matches + stream_sample_events
-                                            │
-        models/ (train_predictor) ──────────┤
+                                         │
+                                         └─▶ spark_processor ─▶ player_aggregations /
+                                                                rivalry_network / serve_strategy
+                                                                └─▶ MongoDB (+ disk mirror)
+        models/ (train_predictor) ──────────┐
                                             ▼
                           FastAPI (backend/api/main.py)  ──▶  vanilla-JS dark UI
-                          DGIM / Bloom / Recommender / Graph / RF predictor
+                          Recommender / Graph / RF predictor
 ```
+
 
 

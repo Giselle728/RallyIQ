@@ -35,11 +35,9 @@
     <button class="tab-btn active" data-tab="overview">📊 System Overview</button>
     <button class="tab-btn" data-tab="match-predictor">🤖 ML Match Predictor</button>
     <button class="tab-btn" data-tab="player-lab">🧬 Player Intelligence Lab</button>
-    <button class="tab-btn" data-tab="momentum">⚡ Match Momentum</button>
     <button class="tab-btn" data-tab="serve-strategy">🎾 Serve Strategy</button>
     <button class="tab-btn" data-tab="recommender">🎯 Playstyle Recommender</button>
     <button class="tab-btn" data-tab="rivalry-network">🌐 Rivalry Network</button>
-    <button class="tab-btn" data-tab="stream-integrity">🌊 Stream Integrity</button>
   </nav>
 
   <!-- Main Content Container -->
@@ -52,7 +50,7 @@
       <div class="section-header">
         <div>
           <h2 class="section-title">Big Data Tennis Intelligence Architecture</h2>
-          <p class="section-desc">Real historical ATP men's tennis data processed via PySpark, MongoDB, DGIM sliding windows, and Bloom filtering.</p>
+          <p class="section-desc">Real historical ATP men's tennis data processed via PySpark, MongoDB, Machine Learning, and Graph Analytics.</p>
         </div>
       </div>
 
@@ -92,10 +90,10 @@
               <strong style="color:var(--neon-emerald);">2. Distributed Batch Processing (PySpark):</strong> Aggregations across 900,000+ points and 7,500+ matches using PySpark DataFrames and Spark SQL on local JVM executors.
             </div>
             <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--neon-coral);">
-              <strong style="color:var(--neon-coral);">3. Storage Layer (MongoDB):</strong> Document collections for matches, point events, player profiles, and stream telemetry, with compound indexes.
+              <strong style="color:var(--neon-coral);">3. Storage Layer (MongoDB):</strong> Document collections for matches and player profiles, with compound indexes.
             </div>
             <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; border-left: 3px solid var(--neon-amber);">
-              <strong style="color:var(--neon-amber);">4. Streaming & Algorithms:</strong> DGIM sliding-window counter (O(log² N) space), Kirsch-Mitzenmacher Bloom Filter, Louvain Community Detection, and Cosine Playstyle Recommender.
+              <strong style="color:var(--neon-amber);">4. Analytics & Algorithms:</strong> Supervised Random Forest Classifier, PageRank centrality, Louvain Community Detection, and Cosine Playstyle Recommender.
             </div>
           </div>
         </div>
@@ -318,123 +316,7 @@
     </section>
 
     <!-- ===================================================================
-         3. FEATURE 2: MATCH MOMENTUM ANALYZER
-         =================================================================== -->
-    <section id="momentum" class="view-section">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">Match Momentum Analyzer</h2>
-          <p class="section-desc">Point-by-point historical match replay powered by DGIM sliding-window algorithm and exponential momentum scoring.</p>
-        </div>
-      </div>
-
-      <!-- Historical Replay Warning Banner -->
-      <div class="replay-banner">
-        <span>⚠️</span>
-        <span>HISTORICAL REPLAY — NOT LIVE TENNIS. Verified point-by-point data from ATP Match Charting Project.</span>
-      </div>
-
-      <div class="control-bar card" style="padding: 1rem 1.5rem;">
-        <div style="flex: 1; min-width: 280px;">
-          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Select Historical Match</label><br>
-          <select id="momentum-match-select" style="width: 100%;"></select>
-        </div>
-        <div>
-          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">DGIM Window (N points)</label><br>
-          <input type="number" id="momentum-window-input" value="40" min="10" max="100" style="width: 100px;">
-        </div>
-        <div>
-          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">EWMA Smoothing (α)</label><br>
-          <input type="number" id="momentum-alpha-input" value="0.25" min="0.05" max="0.9" step="0.05" style="width: 100px;">
-        </div>
-        <div style="align-self: flex-end;">
-          <button class="btn" onclick="initMomentumView()">⚡ Load Match</button>
-        </div>
-      </div>
-
-      <!-- Live Replay Scoreboard -->
-      <div class="card" style="margin-bottom: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <div>
-            <h3 id="momentum-match-label" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);"></h3>
-            <span id="momentum-swings-count" class="status-pill" style="margin-top: 4px; display: inline-block;"></span>
-          </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary" onclick="stepReplay(-1)" title="Step back one point">◀ Step</button>
-            <button id="momentum-play-btn" class="btn" onclick="toggleReplayPlay()">▶ Play</button>
-            <button class="btn btn-secondary" onclick="stepReplay(1)" title="Step forward one point">Step ▶</button>
-          </div>
-        </div>
-
-        <!-- Scrubber -->
-        <input type="range" id="momentum-scrubber" min="0" max="100" value="0" style="width: 100%; margin-bottom: 1.25rem;" oninput="renderMomentumSnapshot(parseInt(this.value)); drawMomentumCanvas();">
-
-        <!-- Live Game State Card -->
-        <div class="grid-4" style="background: rgba(8,14,28,0.7); padding: 1rem; border-radius: 10px; border: 1px solid rgba(0,242,254,0.15);">
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">SCORE STATE</div>
-            <div id="live-score-display" style="font-size: 1.1rem; font-weight: 700; color: var(--cyan-primary); font-family: var(--font-mono);">-</div>
-          </div>
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">SERVER & LEVERAGE</div>
-            <div id="live-server-display" style="font-size: 0.95rem; font-weight: 600;">-</div>
-            <div id="live-point-label" style="font-size: 0.78rem; color: var(--neon-amber);">-</div>
-          </div>
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">POINT OUTCOME</div>
-            <div id="live-winner-display" style="font-size: 0.95rem; font-weight: 600; color: var(--neon-emerald);">-</div>
-          </div>
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">MOMENTUM SCORE</div>
-            <div id="live-momentum-score-text" style="font-size: 0.85rem; font-weight: 700; color: var(--cyan-primary);">-</div>
-            <div style="position: relative; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 4px;">
-              <div id="live-momentum-meter" style="position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan-primary); top: -2px; left: 50%; transform: translateX(-50%); box-shadow: 0 0 8px var(--cyan-primary);"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Momentum Curve & DGIM Sliding Window -->
-      <div class="grid-2" style="margin-bottom: 1.5rem;">
-        <div class="card">
-          <h3 class="card-title">Exponential Momentum Curve</h3>
-          <div class="momentum-canvas-wrapper">
-            <canvas id="momentum-curve-canvas"></canvas>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;">
-            <span>▲ Player 1 Momentum</span>
-            <span>▼ Player 2 Momentum</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 class="card-title">DGIM Sliding-Window Bucket Hierarchy</h3>
-          <div id="dgim-description-text" style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-            Counting Player 1 point wins in sliding window (N=40) using power-of-two buckets (O(log² N) memory):
-          </div>
-          <div id="dgim-bucket-display" class="bucket-chain" style="margin-bottom: 1rem;">
-            <!-- Active buckets rendered dynamically -->
-          </div>
-          <div style="background: rgba(8,14,28,0.7); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(0,242,254,0.15);">
-            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-              <span>DGIM Estimated Count:</span>
-              <strong id="dgim-est-wins" style="color: var(--cyan-primary); font-family: var(--font-mono);">0</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-              <span>Ground Truth Exact Count:</span>
-              <strong id="dgim-exact-wins" style="color: var(--neon-emerald); font-family: var(--font-mono);">0</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
-              <span>DGIM Error Verification:</span>
-              <strong id="dgim-error-pct" style="color: var(--neon-amber); font-family: var(--font-mono);">0.0%</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================================================================
-         4. FEATURE 3: SERVE STRATEGY HEATMAP
+         3. FEATURE 2: SERVE STRATEGY HEATMAP
          =================================================================== -->
     <section id="serve-strategy" class="view-section">
       <div class="section-header">
@@ -691,99 +573,6 @@
               <strong>PageRank:</strong> Measures eigenvector centrality across directed match edges with damping factor α = 0.85.
             </p>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================================================================
-         7. FEATURE 6: STREAM INTEGRITY MONITOR
-         =================================================================== -->
-    <section id="stream-integrity" class="view-section">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">Stream Integrity Monitor</h2>
-          <p class="section-desc">Incremental match-point stream processing with Kirsch-Mitzenmacher Bloom Filter (probabilistic membership) and exact ground-truth set verification for empirical validation and MongoDB persistence.</p>
-        </div>
-      </div>
-
-      <div class="control-bar card" style="padding: 1rem 1.5rem;">
-        <div>
-          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Bit Array Size (m)</label><br>
-          <input type="number" id="bloom-m-input" value="8192" style="width: 110px;">
-        </div>
-        <div>
-          <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Hash Functions (k)</label><br>
-          <input type="number" id="bloom-k-input" value="5" min="2" max="10" style="width: 90px;">
-        </div>
-        <div style="align-self: flex-end; display: flex; gap: 0.5rem;">
-          <button class="btn btn-secondary" onclick="resetStreamFilter()">Reset Filter</button>
-          <button class="btn" onclick="streamStep(5)">⚡ Step 5 Points</button>
-          <button id="stream-auto-btn" class="btn" onclick="toggleAutoStream()">⚡ Start Live Stream</button>
-          <button class="btn btn-danger" onclick="injectDuplicateEvent()">⚠️ Inject Duplicate</button>
-        </div>
-      </div>
-
-      <!-- Stream KPIs -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
-        <div class="card kpi-card">
-          <div class="kpi-label">Unique Inserted Events (n)</div>
-          <div class="kpi-value" id="stream-inserted-n">0</div>
-          <div class="kpi-sub">Unique items committed to Bloom filter & MongoDB</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-label">Bit Array Density</div>
-          <div class="kpi-value" id="stream-bits-density" style="font-size: 1.45rem;">0.0%</div>
-          <div class="kpi-sub">Saturation of bit array m</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-label">Theoretical False-Positive Rate</div>
-          <div class="kpi-value" id="stream-theoretical-fp" style="font-size: 1.5rem;">0.0</div>
-          <div class="kpi-sub">Formula: p = (1 - e^(-kn/m))^k</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-label">Empirical False-Positive Rate</div>
-          <div class="kpi-value" id="stream-empirical-fp" style="font-size: 1.2rem;">0.0</div>
-          <div class="kpi-sub">Evaluated on absent items vs exact set</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-label">Duplicates Caught</div>
-          <div class="kpi-value" id="stream-duplicates-rejected" style="color: var(--neon-coral);">0</div>
-          <div class="kpi-sub">Confirmed duplicates rejected before persistence</div>
-        </div>
-      </div>
-
-      <!-- Live Stream Feed & MongoDB Document Inspector -->
-      <div class="grid-2">
-        <div class="card">
-          <h3 class="card-title">Live Ingested Point Stream Feed</h3>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Event ID</th>
-                  <th>Match</th>
-                  <th>Score</th>
-                  <th>Server</th>
-                  <th>Serve Dir</th>
-                  <th>Bloom Status</th>
-                </tr>
-              </thead>
-              <tbody id="stream-events-table-body">
-                <!-- Rendered dynamically -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 class="card-title" style="margin: 0;">MongoDB Document Inspector</h3>
-            <span id="stream-mongo-docs" class="status-pill">0 Docs</span>
-          </div>
-          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-            Live document serialized from MongoDB <code>stream_events</code> collection:
-          </div>
-          <pre id="mongo-stream-json-preview" class="json-view">{ "status": "Waiting for stream events..." }</pre>
         </div>
       </div>
     </section>

@@ -124,12 +124,6 @@ class MongoStorage:
             self.db.points.create_index([("match_id", pymongo.ASCENDING), ("Pt", pymongo.ASCENDING)])
 
             self.db.player_profiles.create_index([("player", pymongo.ASCENDING)], unique=True)
-
-            self.db.stream_events.create_index([("event_id", pymongo.ASCENDING)], unique=True)
-            self.db.stream_events.create_index([("match_id", pymongo.ASCENDING)])
-            self.db.stream_events.create_index([("timestamp", pymongo.ASCENDING)])
-
-            self.db.stream_metrics.create_index([("timestamp", pymongo.ASCENDING)])
             logger.info("MongoDB indexes successfully created.")
         except Exception as e:
             logger.error(f"Error creating indexes: {e}")
@@ -153,7 +147,7 @@ class MongoStorage:
         if not self.is_live_mongo:
             try:
                 data = {}
-                for col_name in ["matches", "player_profiles", "stream_events", "stream_metrics"]:
+                for col_name in ["matches", "player_profiles"]:
                     cursor = self.db[col_name].find()
                     docs = []
                     for doc in cursor:
@@ -172,9 +166,7 @@ class MongoStorage:
         collections = {
             "matches": self.db.matches.count_documents({}),
             "points": self.db.points.count_documents({}),
-            "player_profiles": self.db.player_profiles.count_documents({}),
-            "stream_events": self.db.stream_events.count_documents({}),
-            "stream_metrics": self.db.stream_metrics.count_documents({})
+            "player_profiles": self.db.player_profiles.count_documents({})
         }
         engine_name = (
             "MongoDB Atlas (Cloud Cluster)" if self.is_live_mongo and self.is_atlas
