@@ -25,7 +25,7 @@
     <div class="system-status-pills">
       <div class="status-pill"><span class="status-dot"></span><span>PySpark Distributed Engine</span></div>
       <div class="status-pill"><span class="status-dot" id="mongo-status-dot"></span><span id="mongo-engine-status">MongoDB Document Store</span></div>
-      <div class="status-pill"><span class="status-dot" id="ml-status-dot"></span><span id="ml-engine-status">ML: Random Forest (67.9% Acc)</span></div>
+      <div class="status-pill"><span class="status-dot" id="ml-status-dot"></span><span id="ml-engine-status">ML: Random Forest Ready</span></div>
       <div class="status-pill"><span>ATP Match Charting Project</span></div>
     </div>
   </header>
@@ -144,29 +144,29 @@
 
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 class="card-title" style="margin: 0;">Machine Learning Model Benchmark</h3>
-            <span class="confidence-tag confidence-high">Trained & Ready</span>
+            <h3 class="card-title" style="margin: 0;">Machine Learning & Colab Evaluation Summary</h3>
+            <span class="confidence-tag confidence-high">Evaluated</span>
           </div>
           <div style="font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary);">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
-              <span>Supervised Classifier:</span>
-              <strong id="benchmark-ml-algo" style="color: var(--cyan-primary);">RandomForest (100 Trees, max_depth=6)</strong>
+              <span>Colab Evaluated Classifier:</span>
+              <strong id="benchmark-ml-algo" style="color: var(--cyan-primary);">RandomForestClassifier (100 Trees, max_depth=7)</strong>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
-              <span>Held-Out Test Accuracy:</span>
-              <span id="benchmark-ml-acc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">67.94% (Baseline LR: 67.28%)</span>
+              <span>Colab Test Accuracy (899 Unique Matches):</span>
+              <span id="benchmark-ml-acc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">Loading...</span>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
-              <span>Held-Out Test ROC-AUC:</span>
-              <span id="benchmark-ml-auc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">0.7505 (Baseline LR: 0.7350)</span>
+              <span>Colab Test ROC-AUC / F1-Score:</span>
+              <span id="benchmark-ml-auc" style="font-family: var(--font-mono); color: var(--neon-emerald); font-weight: 700;">Loading...</span>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.35rem 0;">
-              <span>Chronological Splits:</span>
-              <span id="benchmark-ml-splits" style="font-family: var(--font-mono);">70% Train / 15% Val / 15% Test (2010–2026)</span>
+              <span>Evaluated Test Set Size:</span>
+              <span id="benchmark-ml-splits" style="font-family: var(--font-mono);">899 Unique Original Matches</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 0.35rem 0;">
-              <span>Target Leakage Prevention:</span>
-              <span style="color: var(--neon-emerald);">Zero-leakage pre-match chronological vectors</span>
+              <span>Production Matchup Predictor:</span>
+              <span id="benchmark-ml-prod" style="color: var(--text-primary); font-family: var(--font-mono);">14-Feature Bundle (Cutoff: 2023-02-17)</span>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@
       <div class="section-header">
         <div>
           <h2 class="section-title">🤖 Machine Learning ATP Match Winner Predictor</h2>
-          <p class="section-desc">Supervised pre-match outcome prediction trained on 5,569 verified ATP matches with chronological split validation and zero target leakage.</p>
+          <p class="section-desc">Pre-match outcome prediction using historical ATP player profiles, surface performance, rolling form, and head-to-head records.</p>
         </div>
       </div>
 

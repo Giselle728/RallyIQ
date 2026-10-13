@@ -29,7 +29,7 @@ A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genu
                 ├──────────────────────────────────────┐
                 ▼                                      ▼
 [Analytics & Machine Learning]               [FastAPI REST Backend]
-   • Random Forest Classifier (67.9% Acc)        • 14 REST Endpoints
+   • Random Forest Classifier                    • 15 REST Endpoints
    • Cosine Playstyle Recommender                • Interactive CORS API
    • Louvain Community Detection (Q=0.46)        • Parquet/JSON low-latency caches
    • PageRank Dominance Centrality                     │
@@ -47,58 +47,52 @@ A high-performance Big Data Analytics (BDA) platform built on **117.0 MB of genu
 | 2 | **Serve Strategy Heatmap** | Directional & Fault Zone Clustering | Court spatial partitioning into Deuce/Ad service boxes (Wide, Body, T) with error trajectories |
 | 3 | **Playstyle Recommender** | Normalized Cosine Similarity | Z-score feature scaling across 8 performance dimensions, Cosine metric, explainable attribution |
 | 4 | **ATP Rivalry Network** | Louvain Community Detection & PageRank | Modularity optimization $Q = \sum [e_{ii} - a_i^2]$ and directed eigenvector dominance centrality |
-| 5 | **ML Match Winner Predictor** | Random Forest vs. Logistic Regression | Chronological pre-match feature vectors (zero target leakage), symmetrical ensembling $P(A, B) = 1 - P(B, A)$ |
+| 5 | **ML Match Winner Predictor** | Random Forest & Logistic Regression | Chronological date-grouped pre-match feature vectors and verified Google Colab holdout evaluation |
 
 ---
 
 ## Machine Learning Match Winner Predictor
 
-RallyIQ includes a genuine supervised machine-learning model trained to estimate pre-match ATP match outcomes and probabilities.
+RallyIQ includes a supervised machine-learning model trained to estimate pre-match ATP match outcomes and probabilities, paired with verified Google Colab evaluation artifacts stored in `reports/ml_evaluation/`.
 
-### Zero-Target-Leakage Methodology
-1. **Chronological Feature Isolation:** Features for any match at time $T$ are computed strictly using matches that occurred prior to $T$. Target match outcome is withheld until after features are recorded.
-2. **Post-Match Metric Exclusion:** Post-match statistics (aces, double faults, unforced errors, match duration, and break point conversions in that match) are strictly excluded from the pre-match feature vector.
-3. **Pure Pre-Match Features Extracted (14 Dimensions):**
+### Chronological Feature Methodology
+1. **Chronological Date-Group Feature Isolation:** Matches are grouped by date; features for all matches on date $D$ are computed strictly from matches on earlier dates ($< D$). Rolling histories are updated only after all matches on date $D$ have had their pre-match features extracted.
+2. **Post-Match Metric Exclusion:** Post-match statistics (aces, double faults, unforced errors, match duration, and break point conversions in that match) are excluded from the pre-match feature vector.
+3. **Production Inference Features (`models/match_predictor.joblib`, 14 Dimensions):**
    - `win_rate_diff`: Career win rate difference ($P_1 - P_2$)
    - `surface_win_rate_diff`: Court-specific surface win rate difference
    - `recent_form_diff`: 10-match rolling form win rate difference
    - `h2h_diff` & `h2h_total`: Prior head-to-head meeting wins difference and total rivalry matches
    - `exp_diff`: Log-transformed tour experience difference ($\ln(1 + M_1) - \ln(1 + M_2)$)
-   - `p1_win_rate`, `p2_win_rate`, `p1_surface_win_rate`, `p2_surface_win_rate`: Absolute player priors
+   - `p1_win_rate`, `p2_win_rate`, `p1_surface_win_rate`, `p2_surface_win_rate`: Absolute player priors frozen at training cutoff (`20230217`)
    - `surface_Clay`, `surface_Grass`, `surface_Hard`: One-hot encoded surface indicators
    - `best_of`: Match format (3 vs 5 sets)
-4. **Guaranteed Mathematical Symmetry:**
-   - Training data includes reciprocal inverted pairs $(P_2, P_1, 1 - y)$.
-   - Inference uses symmetrical ensembling: $P(A \text{ beats } B) = \frac{1}{2} [P_{\text{model}}(A, B) + (1 - P_{\text{model}}(B, A))]$, ensuring exact inverse probabilities $P(A, B) + P(B, A) = 100.0\%$.
 
-### Chronological Train / Validation / Test Splits
-- **Total Verified Matches Trained:** 5,569 matches (11,138 symmetrical samples)
-- **Train Set (70%):** 7,796 samples (Jan 2010 – Aug 2023)
-- **Validation Set (15%):** 1,670 samples (Aug 2023 – Oct 2024)
-- **Holdout Test Set (15%):** 1,672 samples (Oct 2024 – May 2026)
+### Disjoint Chronological Splits
+- **Total Verified Unique Matches:** 5,568 unique matches (11,136 augmented samples in production training)
+- **Train Set:** 3,534 unique matches / 7,068 augmented samples (`20100105 to 20230217`)
+- **Validation Set:** 1,135 unique matches / 2,270 augmented samples (`20230218 to 20240922`)
+- **Holdout Test Set:** 899 unique matches / 1,798 augmented samples (`20240925 to 20260521`)
 
-### Held-Out Test Evaluation Benchmark
-| Metric | Baseline Logistic Regression (StandardScaler) | Primary Random Forest (100 Trees, max_depth=6) |
-|---|---|---|
-| **Accuracy** | 67.28% | **67.94%** (+0.66%) |
-| **ROC-AUC** | 0.7350 | **0.7505** (+0.0155) |
-| **F1 Score** | 0.6750 | **0.6759** |
-| **Precision** | 66.86% | **67.61%** |
-| **Recall** | 68.42% | **68.90%** |
+### Verified Google Colab Evaluation Results (`reports/ml_evaluation/`)
+Evaluated on **899 unique held-out test matches** (`RandomForestClassifier`, `n_estimators=100, max_depth=7, random_state=42`, 9 differential & surface features):
 
-### Top Gini Feature Importances
-1. `exp_diff` (0.3825) — Tour experience differential
-2. `win_rate_diff` (0.1468) — Career win rate differential
-3. `p2_win_rate` (0.0995) — Opponent baseline win rate
-4. `p1_win_rate` (0.0868) — Player baseline win rate
-5. `recent_form_diff` (0.0699) — 10-match rolling form differential
-6. `surface_win_rate_diff` (0.0593) — Surface court specialty differential
+| Metric | Value |
+|---|---|
+| **Accuracy** | **68.63%** (`0.6863`) |
+| **Precision** | **69.21%** (`0.6921`) |
+| **Recall** | **71.58%** (`0.7158`) |
+| **F1-Score** | **70.38%** (`0.7038`) |
+| **ROC-AUC** | **0.7491** |
+| **Balanced Accuracy** | **68.51%** (`0.6851`) |
+| **Specificity** | **65.43%** (`0.6543`) |
+| **Confusion Matrix** | `TN=282, FP=149, FN=133, TP=335` (`N = 899`) |
 
 ### Model Retraining Command
 ```bash
 ./venv/bin/python3 -m backend.ml.train_predictor
 ```
-Artifacts are automatically saved to `models/match_predictor.joblib` and `models/model_metrics.json`.
+Production inference artifact is saved to `models/match_predictor.joblib`.
 
 ---
 
@@ -182,14 +176,15 @@ rallyiq/
 │   │   ├── recommender.py       # Feature 3: Cosine playstyle similarity
 │   │   └── graph_analytics.py   # Feature 4: Louvain communities + PageRank
 │   ├── ml/
-│   │   ├── train_predictor.py   # Feature 5: zero-leakage training pipeline
-│   │   └── predictor.py         # Feature 5: inference engine (symmetrical ensembling)
+│   │   ├── train_predictor.py   # Feature 5: chronological date-grouped training pipeline
+│   │   └── predictor.py         # Feature 5: inference engine & Colab evaluation loader
 │   ├── storage/mongo_store.py   # Singleton storage layer (Atlas / mongomock fallback)
 │   ├── api/
 │   │   └── main.py              # FastAPI app: all REST routes
-│   └── tests/                   # 23 unittest cases (algorithms / api / predictor)
+│   └── tests/                   # 35 unittest cases (algorithms / api / predictor)
 ├── frontend/                    # Vanilla JS dark-theme SPA (index.html, app.js, style.css)
-├── models/                      # match_predictor.joblib + model_metrics.json
+├── models/                      # match_predictor.joblib (production inference bundle)
+├── reports/ml_evaluation/       # Verified Google Colab evaluation summary, metrics, report & charts
 └── scripts/                     # run_pipeline.sh, start_server.sh, download_data.py
 ```
 
@@ -488,19 +483,17 @@ rivalry_network.json ──▶ build weighted nx.Graph ──▶ Louvain (Q scor
 
 ---
 
-## Feature 5 — ML Match Winner Predictor (Random Forest vs Logistic Regression)
+## Feature 5 — ML Match Winner Predictor (Random Forest & Logistic Regression)
 
 
-**Endpoints:** `GET /api/predict/status`, `GET /api/predict/match`, `POST /api/predict/match`
-**Code:** `backend/ml/train_predictor.py` (training), `backend/ml/predictor.py` (inference)
-**Artifacts:** `models/match_predictor.joblib`, `models/model_metrics.json`
+**Endpoints:** `GET /api/predict/status`, `GET /api/predict/evaluation`, `GET /api/predict/match`, `POST /api/predict/match`
+**Code:** `backend/ml/train_predictor.py` (training), `backend/ml/predictor.py` (inference & Colab evaluation loader)
+**Artifacts:** `models/match_predictor.joblib` (production inference bundle), `reports/ml_evaluation/` (verified Google Colab evaluation artifacts)
 **UI tab:** 🤖 ML Match Predictor
 
-### Zero-target-leakage feature engineering
+### Date-grouped chronological feature engineering
 
-The central design constraint: **a match's features must only use information known
-before that match started.** `extract_chronological_features()` sorts every *verified*
-match by date and walks it forward, maintaining rolling per-player state in dictionaries:
+The central design constraint: **a match's features must only use information known on strictly earlier dates before that match started.** `extract_chronological_features()` sorts every *verified* match by date, groups matches by `match_date`, builds all pre-match features for the date group from prior state, and updates rolling per-player state only after the entire date group is processed:
 
 ```python
 player_matches / player_wins            # career record
@@ -509,40 +502,19 @@ player_recent_form                      # last-10 results (1=win, 0=loss)
 h2h_wins[(p1, p2)]                      # head-to-head wins
 ```
 
-For each match it reads the current state to build the feature vector, **records the
-sample(s), and only then updates the state** with the result — so no future outcome leaks
-into a past row:
+Each match yields a 14-feature differential vector (`win_rate_diff`, `surface_win_rate_diff`, `recent_form_diff`, `h2h_diff`, `h2h_total`, `exp_diff`, absolute baselines `p1/p2_win_rate` & surface rates, one-hot surface, `best_of`) and a reverse-orientation augmented sample (`5,568` unique matches / `11,136` total augmented samples).
 
-```python
-# ... build feature_vec from current state, append record(s) ...
-# UPDATE ROLLING STATE ONLY AFTER RECORDING PRE-MATCH FEATURES
-player_matches[p1] += 1; player_matches[p2] += 1
-if y == 1:
-    player_wins[p1] += 1; h2h_wins[(p1, p2)] += 1; ...
-```
+### Chronological split & Colab evaluation
 
-Each match yields a 14-feature differential vector (`win_rate_diff`,
-`surface_win_rate_diff`, `recent_form_diff`, `h2h_diff`, `h2h_total`, `exp_diff`,
-absolute baselines `p1/p2_win_rate` & surface rates, one-hot surface, `best_of`). It is
-**duplicated in the reverse orientation** with the target flipped (`1 - y`), enforcing the
-symmetry constraint P(A,B) = 1 − P(B,A) and doubling the sample count (11,138 samples
-from 5,569 verified matches).
+Splits are strictly disjoint by date: **train** (`20100105 to 20230217`, 3,534 unique matches), **validation** (`20230218 to 20240922`, 1,135 unique matches), and **holdout test** (`20240925 to 20260521`, 899 unique matches).
+- **Verified Colab Evaluation (`reports/ml_evaluation/`):** `RandomForestClassifier(n_estimators=100, max_depth=7, random_state=42)` evaluated on 899 unique test matches → Accuracy **68.63%**, Precision **69.21%**, Recall **71.58%**, F1-Score **70.38%**, ROC-AUC **0.7491**, Balanced Accuracy **68.51%**, Specificity **65.43%**.
+- **Production Inference Bundle (`models/match_predictor.joblib`):** Stores `RandomForestClassifier`, `LogisticRegression` + `StandardScaler`, and `player_states` frozen at the training cutoff (`20230217`).
 
-### Chronological split & models
+Retrain the production bundle with `./venv/bin/python3 -m backend.ml.train_predictor`.
 
-Splits are by time, never random: **train** (2010–2023), **validation** (2023–2024),
-**holdout test** (2024–2026). Two models are trained and compared:
-- **Primary:** `RandomForestClassifier(n_estimators=100, max_depth=6)` → test accuracy **67.94%**, ROC-AUC **0.7505**
-- **Baseline:** `LogisticRegression` on `StandardScaler`-scaled features → test accuracy **67.28%**, ROC-AUC **0.7350**
+### Order-independent inference
 
-Retrain with `./venv/bin/python3 -m backend.ml.train_predictor`, which overwrites the
-joblib + metrics artifacts.
-
-### Symmetrical-averaging inference
-
-`predictor.predict()` rebuilds the same differential feature vector from the stored final
-rolling state, then averages the forward and inverted-model probabilities so the answer is
-order-independent:
+`predictor.predict()` rebuilds the differential feature vector from the stored training-cutoff state and averages forward and reverse orientation probabilities:
 
 ```python
 probs_fwd = self.model.predict_proba(X_df)[0]
@@ -550,20 +522,16 @@ probs_rev = self.model.predict_proba(X_df_rev)[0]
 prob_a = float(np.clip(0.5 * (probs_fwd[1] + (1.0 - probs_rev[1])), 0.01, 0.99))
 ```
 
-The response includes both RF and baseline probabilities, a confidence label (High if the
-probability margin ≥ 0.35, Moderate ≥ 0.15, else Low), the head-to-head prior, and an
-interpretability block (`key_factors`). Unseen players get a neutral 0.5 prior and a
-`coverage_notice` rather than an error. Each prediction is appended to a
-`prediction_audit` MongoDB collection with a timestamp.
+The response includes both Random Forest and Logistic Regression probabilities (or `null` if the baseline is unavailable, never silently substituting RF probabilities), a confidence label, the head-to-head prior, and an interpretability block (`key_factors`). Unseen players get a neutral 0.5 prior and a `coverage_notice` rather than an error. Each prediction is appended to a `prediction_audit` MongoDB collection with a timestamp.
 
 **Flow:**
 ```
 clean_matches.parquet (Verified only)
-   └─▶ chronological walk ──▶ 14-feature vectors + reverse copies
-         └─▶ time split ──▶ RandomForest vs LogisticRegression ──▶ metrics + feature_importances
-               └─▶ joblib artifact ──▶ predictor singleton
-UI matchup ──▶ GET/POST /api/predict/match ──▶ build features from final rolling state
-   ──▶ symmetrical probability average ──▶ winner + confidence + key_factors (+ audit log)
+   └─▶ date-grouped chronological walk ──▶ 14-feature vectors + reverse copies
+         └─▶ disjoint date split ──▶ RandomForest + LogisticRegression ──▶ models/match_predictor.joblib
+reports/ml_evaluation/ ──▶ GET /api/predict/evaluation ──▶ Colab metrics + Confusion Matrix / ROC / Feature Importance charts
+UI matchup ──▶ GET/POST /api/predict/match ──▶ build features from training-cutoff state
+   ──▶ order-independent probability average ──▶ winner + confidence + key_factors (+ audit log)
 ```
 
 ---

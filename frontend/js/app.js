@@ -79,33 +79,41 @@ async function loadOverview() {
 
     // Header ML Status Pill
     const mlStatusEl = document.getElementById('ml-engine-status');
+    const colabEval = ml.colab_evaluation || {};
+    const colabMetrics = colabEval.metrics || {};
     if (mlStatusEl) {
-      const acc = ml.test_metrics?.random_forest?.accuracy;
-      const accPct = acc ? `${(acc * 100).toFixed(1)}% Acc` : '67.9% Acc';
-      mlStatusEl.textContent = `ML: Random Forest (${accPct})`;
+      const accPct = colabMetrics.accuracy_pct || (ml.is_ready ? 'Ready' : 'Offline');
+      mlStatusEl.textContent = `ML: Random Forest (${accPct} Colab Test)`;
     }
 
-    // Bind dynamic benchmark cards in Overview
+    // Bind dynamic Colab evaluation summary in Overview
     const bAlgo = document.getElementById('benchmark-ml-algo');
     const bAcc = document.getElementById('benchmark-ml-acc');
     const bAuc = document.getElementById('benchmark-ml-auc');
     const bSplits = document.getElementById('benchmark-ml-splits');
+    const bProd = document.getElementById('benchmark-ml-prod');
 
-    if (ml && ml.test_metrics) {
-      const rf = ml.test_metrics.random_forest || {};
-      const lr = ml.test_metrics.logistic_regression_baseline || {};
-      const rfAcc = rf.accuracy ? `${(rf.accuracy * 100).toFixed(2)}%` : '67.94%';
-      const lrAcc = lr.accuracy ? `${(lr.accuracy * 100).toFixed(2)}%` : '67.28%';
-      const rfAuc = rf.roc_auc ? rf.roc_auc.toFixed(4) : '0.7505';
-      const lrAuc = lr.roc_auc ? lr.roc_auc.toFixed(4) : '0.7350';
-
-      if (bAlgo) bAlgo.textContent = `${ml.algorithm || 'RandomForest'} (100 Trees, max_depth=6)`;
-      if (bAcc) bAcc.textContent = `${rfAcc} (Baseline LR: ${lrAcc})`;
-      if (bAuc) bAuc.textContent = `${rfAuc} (Baseline LR: ${lrAuc})`;
-      if (bSplits) {
-        const ds = ml.dataset_coverage || {};
-        bSplits.textContent = `Chronological: ${ds.train_samples?.toLocaleString() || '7,800'} Train / ${ds.test_samples?.toLocaleString() || '1,672'} Test`;
+    if (colabEval && colabEval.available) {
+      const ident = colabEval.model_identity || {};
+      const dsSummary = colabEval.dataset_and_split_summary || {};
+      if (bAlgo) {
+        bAlgo.textContent = `${ident.model_type || 'RandomForestClassifier'} (${ident.n_estimators || 100} Trees, max_depth=${ident.max_depth || 7}, ${ident.feature_count || 9} Features)`;
       }
+      if (bAcc) {
+        bAcc.textContent = `${colabMetrics.accuracy_pct || 'N/A'} (${colabMetrics.test_matches_count || 899} Unique Matches)`;
+      }
+      if (bAuc) {
+        const aucStr = colabMetrics.roc_auc != null ? colabMetrics.roc_auc.toFixed(4) : 'N/A';
+        const f1Str = colabMetrics.f1_score != null ? colabMetrics.f1_score.toFixed(4) : 'N/A';
+        bAuc.textContent = `ROC-AUC: ${aucStr} | F1: ${f1Str}`;
+      }
+      if (bSplits) {
+        bSplits.textContent = `${(dsSummary.train_unique_matches || 3534).toLocaleString()} Train / ${(dsSummary.validation_unique_matches || 1135).toLocaleString()} Val / ${(dsSummary.test_unique_matches || 899).toLocaleString()} Test (Unique Matches)`;
+      }
+    }
+    if (bProd && ml) {
+      const cutoff = ml.training_cutoff_date || '20230217';
+      bProd.textContent = `${ml.algorithm || 'RandomForestClassifier'} (Cutoff: ${cutoff})`;
     }
 
     // Diagnostics Card in Overview
@@ -259,7 +267,7 @@ async function runMatchPrediction() {
   container.innerHTML = `
     <div class="card" style="text-align: center; padding: 2.5rem;">
       <div style="font-family: var(--font-mono); color: var(--cyan-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">
-        ⚡ Generating Zero-Leakage Pre-Match Prediction...
+        ⚡ Generating Pre-Match Prediction...
       </div>
       <div style="font-size: 0.85rem; color: var(--text-secondary);">
         Synthesizing career win rates, ${surf} specialty, 10-match rolling form, and prior head-to-head encounters for ${pA} vs ${pB}...
@@ -293,15 +301,13 @@ function renderPredictionResults(data) {
   const pA = data.player_a;
   const pB = data.player_b;
   const pred = data.prediction;
-  const base = data.baseline_comparison || {};
-  const meta = data.model_metadata || {};
   const factors = data.key_factors || [];
   const h2h = data.head_to_head_prior || {};
 
   const probA = pred.player_a_win_probability;
   const probB = pred.player_b_win_probability;
   const isWinnerA = pred.predicted_winner === pA.name;
-  
+
   const confClass = pred.confidence_level === 'High' ? 'confidence-high' :
                     pred.confidence_level === 'Moderate' ? 'confidence-moderate' : 'confidence-slight';
 
@@ -364,14 +370,14 @@ function renderPredictionResults(data) {
       </div>
 
       <!-- Probability Comparison Duel Bar -->
-      <div class="prob-bar-wrapper">
+      <div class="prob-bar-wrapper" style="margin-bottom: 0;">
         <div class="prob-bar-header">
           <div>
             <strong style="color: var(--cyan-primary);">${pA.name}</strong>
             <span style="font-family: var(--font-mono); font-size: 1.15rem; font-weight: 800; margin-left: 0.5rem; color: var(--cyan-primary);">${probA}%</span>
           </div>
           <div style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">
-            Win Probability Distribution
+            Random Forest Win Probability
           </div>
           <div>
             <span style="font-family: var(--font-mono); font-size: 1.15rem; font-weight: 800; margin-right: 0.5rem; color: var(--neon-coral);">${probB}%</span>
@@ -381,11 +387,6 @@ function renderPredictionResults(data) {
         <div class="prob-bar-track">
           <div class="prob-bar-fill-a" style="width: ${probA}%;"></div>
           <div class="prob-bar-fill-b" style="width: ${probB}%;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.6rem; font-family: var(--font-mono);">
-          <span>LR Win Probability: ${(base.logistic_regression_prob_a ?? probA).toFixed(1)}%</span>
-          <span>Symmetrical Ensembled Random Forest (100 Trees)</span>
-          <span>LR Win Probability: ${(base.logistic_regression_prob_b ?? probB).toFixed(1)}%</span>
         </div>
       </div>
     </div>
@@ -440,7 +441,7 @@ function renderPredictionResults(data) {
                 <td style="font-family: var(--font-mono);">${h2h.player_b_wins} Wins</td>
               </tr>
               <tr>
-                <td><strong>Verified Point Matches (2010–2026 Model Training)</strong></td>
+                <td><strong>Verified Point Matches (Pre-Cutoff Training State)</strong></td>
                 <td style="font-family: var(--font-mono);">${pA.has_verified_training_data ? `${pA.verified_matches} matches` : '<span style="color:var(--neon-coral);">0 (Neutral Prior 50% applied)</span>'}</td>
                 <td style="font-family: var(--font-mono);">${pB.has_verified_training_data ? `${pB.verified_matches} matches` : '<span style="color:var(--neon-coral);">0 (Neutral Prior 50% applied)</span>'}</td>
               </tr>
@@ -451,46 +452,6 @@ function renderPredictionResults(data) {
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Model Governance, Benchmark & Disclaimer Card -->
-    <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem; margin-bottom: 1rem;">
-        <h3 class="card-title" style="margin: 0;">Machine Learning Governance & Benchmark Validation</h3>
-        <span class="confidence-tag confidence-high">Zero-Leakage Verified</span>
-      </div>
-      <div class="grid-4" style="margin-bottom: 1rem;">
-        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Holdout Test Accuracy</div>
-          <div style="font-size: 1.45rem; font-weight: 800; color: var(--neon-emerald); font-family: var(--font-mono); margin: 0.2rem 0;">${meta.test_accuracy || '67.94%'}</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">vs Baseline LR ${base.baseline_test_accuracy || '67.28%'}</div>
-        </div>
-        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Holdout Test ROC-AUC</div>
-          <div style="font-size: 1.45rem; font-weight: 800; color: var(--neon-emerald); font-family: var(--font-mono); margin: 0.2rem 0;">${meta.test_roc_auc || '0.7505'}</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">vs Baseline LR ${base.baseline_test_roc_auc || '0.7350'}</div>
-        </div>
-        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Mathematical Symmetry</div>
-          <div style="font-size: 1.45rem; font-weight: 800; color: var(--cyan-primary); font-family: var(--font-mono); margin: 0.2rem 0;">100.0% Exact</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">P(A, B) = 1 - P(B, A)</div>
-        </div>
-        <div style="background: rgba(8,14,28,0.7); padding: 0.85rem; border-radius: 8px;">
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">Split Strategy</div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); margin: 0.35rem 0;">Chronological</div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">70/15/15 (2010–2026)</div>
-        </div>
-      </div>
-      <div style="font-size: 0.82rem; line-height: 1.7; color: var(--text-secondary);">
-        <strong>Methodological Safeguards:</strong> Features are extracted chronologically match-by-match. Post-match stats (aces, double faults, unforced errors, match duration, and match winners) are strictly excluded from the pre-match feature vectors.
-      </div>
-
-      <div class="disclaimer-card">
-        <span style="font-size: 1.3rem;">⚠️</span>
-        <div>
-          <strong>Sports Analytics Disclaimer:</strong> ${data.disclaimer || 'Probabilistic model estimate based on historical pre-match feature vectors without outcome leakage. Sports matches contain intrinsic unpredictability.'}
         </div>
       </div>
     </div>

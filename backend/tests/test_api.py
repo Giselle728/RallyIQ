@@ -113,6 +113,26 @@ class TestRallyIQApi(unittest.TestCase):
         data = res.json()
         self.assertTrue(data.get("is_ready"))
         self.assertEqual(data.get("status"), "ready")
+        self.assertIn("colab_evaluation", data)
+        self.assertTrue(data["colab_evaluation"]["available"])
+
+    def test_predict_evaluation_and_charts_endpoints(self):
+        res = self.client.get("/api/predict/evaluation")
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()
+        self.assertIn("colab_evaluation", payload)
+        self.assertIn("production_predictor", payload)
+        data = payload["colab_evaluation"]
+        self.assertTrue(data.get("available"))
+        self.assertEqual(data["dataset_and_split_summary"]["test_unique_matches"], 899)
+        self.assertAlmostEqual(data["metrics"]["accuracy"], 0.6863, places=4)
+        self.assertAlmostEqual(data["metrics"]["roc_auc"], 0.7491, places=4)
+
+        # Verify static chart images are served properly
+        for chart_url in data["charts"].values():
+            chart_res = self.client.get(chart_url)
+            self.assertEqual(chart_res.status_code, 200)
+            self.assertEqual(chart_res.headers.get("content-type"), "image/png")
 
     def test_predict_match_endpoints(self):
         # GET endpoint
@@ -122,9 +142,10 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("prediction", data_get)
         self.assertIn("predicted_winner", data_get["prediction"])
         self.assertIn("baseline_comparison", data_get)
-        self.assertEqual(data_get["baseline_comparison"]["metric_type"], "Held-Out Test Set")
+        self.assertTrue(data_get["baseline_comparison"]["baseline_available"])
         self.assertIn("model_metadata", data_get)
-        self.assertIn("67.94%", data_get["model_metadata"]["test_accuracy"])
+        self.assertEqual(data_get["model_metadata"]["training_cutoff_date"], "20230217")
+        self.assertNotIn("disclaimer", data_get)
 
         # GET endpoint with historical unverified player (Pete Sampras)
         res_sampras = self.client.get("/api/predict/match?player_a=Pete Sampras&player_b=Novak Djokovic&surface=Grass")

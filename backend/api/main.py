@@ -315,6 +315,11 @@ def get_predictor_status():
     """Return ML model metadata, evaluation metrics, and operational readiness."""
     return predictor.get_status()
 
+@app.get("/api/predict/evaluation")
+def get_predictor_evaluation():
+    """Return validated Google Colab evaluation report and production predictor metadata."""
+    return predictor.get_evaluation_report()
+
 @app.get("/api/predict/match")
 def predict_match_get(
     player_a: str = Query(..., description="First ATP player name"),
@@ -349,9 +354,14 @@ def predict_match_post(payload: MatchPredictionRequest):
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 # =============================================================================
-# FRONTEND STATIC FILES
+# FRONTEND & EVALUATION REPORT STATIC FILES
 # =============================================================================
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
+REPORTS_ML_EVAL_DIR = os.path.join(PROJECT_ROOT, "reports", "ml_evaluation")
+
+if os.path.exists(REPORTS_ML_EVAL_DIR):
+    app.mount("/reports/ml_evaluation", StaticFiles(directory=REPORTS_ML_EVAL_DIR), name="ml_evaluation")
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
