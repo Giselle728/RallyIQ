@@ -606,6 +606,23 @@ raw ATP CSVs ─▶ ingest_validate ─▶ clean Parquet
                           FastAPI (backend/api/main.py)  ──▶  vanilla-JS dark UI
                           Recommender / Graph / RF predictor
 ```
+Output:
+
+Dashboard 
+<img width="631" height="353" alt="Screenshot 2026-10-16 at 6 52 05 PM" src="https://github.com/user-attachments/assets/2b2e5281-117b-4d56-8ef7-a6e90a31713f" />
+Match Predictor using ML
+<img width="670" height="376" alt="Screenshot 2026-10-16 at 6 52 46 PM" src="https://github.com/user-attachments/assets/c59a7441-6210-473a-a968-89460319a503" />
+Player Intelligence Lab
+<img width="692" height="393" alt="Screenshot 2026-10-16 at 6 53 17 PM" src="https://github.com/user-attachments/assets/25a793d6-68f5-4fb3-a117-4d24f6808462" />
+Serve Strategy and Court Placement
+<img width="733" height="411" alt="Screenshot 2026-10-16 at 6 53 39 PM" src="https://github.com/user-attachments/assets/3c8b121d-4b01-483e-9d87-955666f8aae9" />
+Similar Playstyle Recommender
+<img width="743" height="382" alt="Screenshot 2026-10-16 at 6 53 57 PM" src="https://github.com/user-attachments/assets/d7a3836a-9047-49db-8ec9-ad4d70db98a6" />
+ATP Rivalry Network
+<img width="720" height="406" alt="Screenshot 2026-10-16 at 6 54 23 PM" src="https://github.com/user-attachments/assets/76b28c29-0b81-4832-9370-411262b3c435" />
+
+
+
 
 
 
