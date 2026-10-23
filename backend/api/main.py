@@ -46,7 +46,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -148,6 +148,8 @@ def get_dashboard_top_players(limit: int = 10):
             "overall": data.get("overall", {}),
             "surfaces": list(data.get("surfaces", {}).keys())
         })
+    if limit < 1:
+        limit = 1
     players.sort(key=lambda x: x["total_matches"], reverse=True)
     return {"top_players": players[:limit]}
 
@@ -159,6 +161,10 @@ def get_matches(
     player: Optional[str] = None
 ):
     """Return paginated match records from clean_matches dataset."""
+    if limit < 0:
+        limit = 0
+    if offset < 0:
+        offset = 0
     query = {}
     if surface:
         query["Surface"] = surface
