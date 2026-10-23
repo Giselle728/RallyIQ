@@ -586,7 +586,7 @@ The `local[2]` / `1g` settings keep the whole pipeline under ~1.2 GB RAM on an 8
 | `POST /api/predict/match` | Predict winner (JSON body) | `MatchPredictionRequest` |
 | `GET /` · `/static/*` | Serves the frontend SPA + assets | — |
 
-## Test Suite (23 tests)
+## Test Suite (35 tests)
 
 Run with `./venv/bin/python3 -m unittest discover -s backend/tests`. Coverage:
 - **`test_algorithms.py`** — Recommender cosine ranking; Louvain community modularity + PageRank on the real graph.
