@@ -68,8 +68,8 @@ def validate_and_clean_matches(matches_df: pd.DataFrame) -> Tuple[pd.DataFrame, 
     verified = verified.drop_duplicates(subset=["match_id"]).copy()
 
     # 2. Clean and validate player names
-    verified["p1_clean"] = verified["Player 1"].astype(str).str.strip()
-    verified["p2_clean"] = verified["Player 2"].astype(str).str.strip()
+    verified["p1_clean"] = verified["Player 1"].fillna("").astype(str).str.strip()
+    verified["p2_clean"] = verified["Player 2"].fillna("").astype(str).str.strip()
     missing_players_mask = (verified["p1_clean"] == "") | (verified["p2_clean"] == "")
     missing_players_count = int(missing_players_mask.sum())
     verified = verified[~missing_players_mask].copy()
@@ -85,7 +85,7 @@ def validate_and_clean_matches(matches_df: pd.DataFrame) -> Tuple[pd.DataFrame, 
     verified = verified[valid_dates].copy()
 
     # 4. Validate winner attribution
-    verified["winner_clean"] = verified["verified_winner"].astype(str).str.strip()
+    verified["winner_clean"] = verified["verified_winner"].fillna("").astype(str).str.strip()
     valid_winner_mask = verified.apply(
         lambda r: r["winner_clean"] in [r["p1_clean"], r["p2_clean"]],
         axis=1
