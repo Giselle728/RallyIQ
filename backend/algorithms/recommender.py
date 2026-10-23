@@ -116,6 +116,18 @@ class PlaystyleRecommender:
         Find top K most similar players to target_player using Cosine Similarity.
         Returns recommendations with feature attribution and radar data.
         """
+        if self.feature_matrix is None or self.normalized_matrix is None or not self.qualified_players:
+            return {
+                "error": "Recommender is not fitted or no eligible players are available.",
+                "available_players": [],
+            }
+
+        try:
+            top_k = int(top_k)
+        except (TypeError, ValueError):
+            top_k = 5
+        top_k = max(1, top_k)
+
         if target_player not in self.qualified_players:
             # Check case-insensitive match
             matches = [p for p in self.qualified_players if p.lower() == target_player.lower()]
