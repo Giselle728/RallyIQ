@@ -328,6 +328,20 @@ def predict_match_get(
     best_of: int = Query(3, description="Best of 3 or 5 sets")
 ):
     """Predict ATP match winner and probability estimates using trained ML model."""
+    # Input validation (issue: Match prediction API input validation)
+    valid_surfaces = {"Hard", "Clay", "Grass"}
+    surface_clean = str(surface).strip().capitalize()
+    if surface_clean not in valid_surfaces:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported surface '{surface}'. Supported surfaces: Hard, Clay, Grass.",
+        )
+    try:
+        best_of_int = int(best_of)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail=f"Invalid best_of value '{best_of}'. Must be an integer (3 or 5).")
+    if best_of_int not in (3, 5):
+        raise HTTPException(status_code=400, detail=f"Unsupported best_of value {best_of_int}. Supported values: 3 or 5.")
     try:
         return predictor.predict(player_a, player_b, surface=surface, best_of=best_of)
     except ValueError as ve:
@@ -341,6 +355,20 @@ def predict_match_get(
 @app.post("/api/predict/match")
 def predict_match_post(payload: MatchPredictionRequest):
     """Predict ATP match winner via JSON payload."""
+    # Input validation (issue: Match prediction API input validation)
+    valid_surfaces = {"Hard", "Clay", "Grass"}
+    surface_clean = str(payload.surface).strip().capitalize()
+    if surface_clean not in valid_surfaces:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported surface '{payload.surface}'. Supported surfaces: Hard, Clay, Grass.",
+        )
+    try:
+        best_of_int = int(payload.best_of)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail=f"Invalid best_of value '{payload.best_of}'. Must be an integer (3 or 5).")
+    if best_of_int not in (3, 5):
+        raise HTTPException(status_code=400, detail=f"Unsupported best_of value {best_of_int}. Supported values: 3 or 5.")
     try:
         return predictor.predict(
             payload.player_a, payload.player_b, surface=payload.surface, best_of=payload.best_of
