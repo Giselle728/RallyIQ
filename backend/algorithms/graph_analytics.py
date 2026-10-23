@@ -104,10 +104,23 @@ class RivalryNetwork:
         """
         Generate filtered subgraph JSON for interactive visual representation.
         """
-        # Filter nodes by degree / total matches
+        # Normalize and validate filter parameters
+        try:
+            min_meetings = int(min_meetings)
+        except (TypeError, ValueError):
+            min_meetings = 1
+        min_meetings = max(0, min_meetings)
+
+        try:
+            top_n_nodes = int(top_n_nodes)
+        except (TypeError, ValueError):
+            top_n_nodes = 40
+        top_n_nodes = max(1, top_n_nodes)
+
+        # Filter nodes by PageRank and total matches
         nodes_ranked = sorted(
             self.G.nodes(data=True),
-            key=lambda x: x[1].get("pagerank", 0) * x[1].get("total_matches", 1),
+            key=lambda x: (x[1].get("pagerank", 0.0), x[1].get("total_matches", 0)),
             reverse=True
         )[:top_n_nodes]
         
