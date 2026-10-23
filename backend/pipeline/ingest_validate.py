@@ -38,12 +38,12 @@ def validate_matches_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
     
     # 2. Schema validation & column standardization
     valid_surfaces = {"Hard", "Clay", "Grass", "Carpet"}
-    df["Surface"] = df["Surface"].astype(str).str.strip().str.capitalize()
+    df["Surface"] = df["Surface"].fillna("Hard").astype(str).str.strip().str.capitalize()
     df.loc[~df["Surface"].isin(valid_surfaces), "Surface"] = "Hard"  # Standardize anomalies
     
     # Standardize player names
-    df["Player 1"] = df["Player 1"].astype(str).str.strip()
-    df["Player 2"] = df["Player 2"].astype(str).str.strip()
+    df["Player 1"] = df["Player 1"].fillna("").astype(str).str.strip()
+    df["Player 2"] = df["Player 2"].fillna("").astype(str).str.strip()
     
     # Extract Year from Date (format YYYYMMDD or from match_id)
     def parse_year(row):
@@ -103,7 +103,7 @@ def validate_points_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, An
     df["Gm2"] = pd.to_numeric(df["Gm2"], errors="coerce").fillna(0).astype(int)
     
     # Clean text columns
-    df["Pts"] = df["Pts"].astype(str).str.strip()
+    df["Pts"] = df["Pts"].fillna("").astype(str).str.strip()
     df["1st"] = df["1st"].fillna("").astype(str).str.strip()
     df["2nd"] = df["2nd"].fillna("").astype(str).str.strip()
     
