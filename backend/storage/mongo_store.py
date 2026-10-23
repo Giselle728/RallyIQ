@@ -9,7 +9,7 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 import certifi
 import pymongo
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, OperationFailure
@@ -26,11 +26,18 @@ def mask_mongo_uri(uri: str) -> str:
     try:
         parsed = urlparse(uri)
         if parsed.username or parsed.password:
-            netloc = parsed.netloc
-            if "@" in netloc:
-                creds, host = netloc.split("@", 1)
-                masked_netloc = "****:****@" + host
-                return uri.replace(netloc, masked_netloc)
+            host = parsed.hostname or ""
+            if parsed.port:
+                host = f"{host}:{parsed.port}"
+            masked_netloc = f"****:****@{host}"
+            return urlunparse((
+                parsed.scheme,
+                masked_netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment,
+            ))
         return uri
     except Exception:
         return "mongodb+srv://****:****@<masked-cluster>"
