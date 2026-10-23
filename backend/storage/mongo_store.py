@@ -147,7 +147,7 @@ class MongoStorage:
         if not self.is_live_mongo:
             try:
                 data = {}
-                for col_name in ["matches", "player_profiles"]:
+                for col_name in ["matches", "points", "player_profiles"]:
                     cursor = self.db[col_name].find()
                     docs = []
                     for doc in cursor:
