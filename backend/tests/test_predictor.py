@@ -73,10 +73,9 @@ class TestMatchPredictor(unittest.TestCase):
             predictor.predict("", "Novak Djokovic", surface="Hard")
 
     def test_unknown_player_graceful_handling(self):
-        # Should not crash; defaults to neutral 0.5 priors
-        res = predictor.predict("Unknown Player XYZ", "Novak Djokovic", surface="Hard")
-        self.assertEqual(res["prediction"]["predicted_winner"], "Novak Djokovic")
-        self.assertGreater(res["prediction"]["player_b_win_probability"], 50.0)
+        # Completely unknown players are rejected with a clear error
+        with self.assertRaises(ValueError):
+            predictor.predict("Unknown Player XYZ", "Novak Djokovic", surface="Hard")
 
     def test_historical_coverage_notice_for_unverified_player(self):
         # Pete Sampras has 237 historical matches in database but 0 in 2010-2026 point training data

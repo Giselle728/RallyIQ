@@ -302,6 +302,14 @@ class MatchPredictor:
             "leakage_prevention": self.metrics.get("leakage_prevention", [])
         }
 
+    def _is_known_player(self, player_name: str) -> bool:
+        """Return True if the player exists in historical profiles or training state."""
+        if player_name in self.historical_profiles:
+            return True
+        if self.player_states.get("player_matches", {}).get(player_name, 0) > 0:
+            return True
+        return False
+
     def _extract_player_profile(self, player_name: str, surface: str) -> Dict[str, Any]:
         """Extract pre-match performance features for a single player from frozen training state."""
         p_matches = self.player_states.get("player_matches", {}).get(player_name, 0)
@@ -363,6 +371,13 @@ class MatchPredictor:
             raise ValueError("Both player_a and player_b names must be provided.")
         if p_a.lower() == p_b.lower():
             raise ValueError("Player A and Player B must be different players.")
+
+        # Reject players that are entirely absent from the prediction dataset.
+        # Players with historical records but no verified training rows (e.g. Pete
+        # Sampras) remain supported and receive a neutral prior.
+        for player in (p_a, p_b):
+            if not self._is_known_player(player):
+                raise ValueError(f"Player '{player}' is not available in the prediction dataset.")
 
         valid_surfaces = {"Hard", "Clay", "Grass"}
         surface_clean = str(surface).strip().capitalize()
