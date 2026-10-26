@@ -88,6 +88,41 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("recommendations", data)
         self.assertEqual(len(data["recommendations"]), 3)
         self.assertIn("archetype", data["recommendations"][0])
+    
+    def test_recommender_rejects_invalid_top_k(self):
+        for bad in (0, -3, 99999):
+            res = self.client.get(
+                "/api/recommender", params={"player": "Carlos Alcaraz", "top_k": bad}
+            )
+            self.assertEqual(res.status_code, 422, f"top_k={bad} should be rejected")
+
+    def test_recommender_top_k_boundaries(self):
+        for valid in (1, 50):
+            res = self.client.get(
+                "/api/recommender", params={"player": "Carlos Alcaraz", "top_k": valid}
+            )
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(len(res.json()["recommendations"]), valid)
+
+    def test_recommender_rejects_empty_player(self):
+        for bad in ("", "   "):
+            res = self.client.get(
+                "/api/recommender", params={"player": bad, "top_k": 5}
+            )
+            self.assertEqual(res.status_code, 422, f"player={bad!r} should be rejected")
+
+    def test_recommender_trims_player_name(self):
+        res = self.client.get(
+            "/api/recommender", params={"player": "  Carlos Alcaraz  ", "top_k": 3}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["target_player"], "Carlos Alcaraz")
+
+    def test_recommender_unknown_player_returns_404(self):
+        res = self.client.get(
+            "/api/recommender", params={"player": "Nobody Real", "top_k": 5}
+        )
+        self.assertEqual(res.status_code, 404)
 
     def test_rivalry_network_endpoint(self):
         res = self.client.get("/api/rivalry-network?min_meetings=3&top_n=25")
