@@ -268,9 +268,12 @@ def get_serve_strategy(
 @app.get("/api/recommender")
 def get_recommendations(
     player: str = Query(..., description="Target player name"),
-    top_k: int = Query(5, description="Number of recommendations")
+    top_k: int = Query(5, ge=1, le=50, description="Number of recommendations (1-50)")
 ):
     """Find players with most similar statistical playstyle using Cosine Similarity."""
+    player = player.strip()
+    if not player:
+        raise HTTPException(status_code=422, detail="player must not be empty.")
     res = recommender.find_similar_players(player, top_k=top_k)
     if "error" in res:
         raise HTTPException(status_code=404, detail=res["error"])
