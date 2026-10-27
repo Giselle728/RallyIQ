@@ -214,6 +214,46 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("prediction", data_post)
         self.assertEqual(data_post["surface"], "Clay")
 
+    def test_predict_match_rejects_unknown_players(self):
+        # Unknown Player A
+        res_a = self.client.get(
+            "/api/predict/match",
+            params={
+                "player_a": "Nobody Real",
+                "player_b": "Novak Djokovic",
+                "surface": "Hard"
+            }
+        )
+        self.assertEqual(res_a.status_code, 400)
+        self.assertIn("Nobody Real", res_a.json()["detail"])
+        self.assertIn("not found", res_a.json()["detail"].lower())
+
+        # Unknown Player B
+        res_b = self.client.get(
+            "/api/predict/match",
+            params={
+                "player_a": "Novak Djokovic",
+                "player_b": "Nobody Real",
+                "surface": "Hard"
+            }
+        )
+        self.assertEqual(res_b.status_code, 400)
+        self.assertIn("Nobody Real", res_b.json()["detail"])
+
+        # Unknown player through POST endpoint
+        res_post = self.client.post(
+            "/api/predict/match",
+            json={
+                "player_a": "Nobody Real",
+                "player_b": "Novak Djokovic",
+                "surface": "Hard",
+                "best_of": 3
+            }
+        )
+        self.assertEqual(res_post.status_code, 400)
+        self.assertIn("Nobody Real", res_post.json()["detail"])
+
+
     def test_frontend_root_endpoint(self):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)

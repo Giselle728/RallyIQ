@@ -381,6 +381,18 @@ class MatchPredictor:
         prof_a = self._extract_player_profile(p_a, surface_clean)
         prof_b = self._extract_player_profile(p_b, surface_clean)
 
+        unknown_players = [
+            name for name, profile in ((p_a, prof_a), (p_b, prof_b))
+            if profile["historical_matches"] == 0
+            and profile["verified_matches"] == 0
+        ]
+        if unknown_players:
+            names = ", ".join(f"'{name}'" for name in unknown_players)
+            raise ValueError(
+                f"Player(s) {names} not found in the available match dataset. "
+                "Please check the spelling or choose a player present in the dataset."
+            )
+
         # Head-to-Head prior lookup from frozen player state
         h2h_key_a = f"{p_a}__vs__{p_b}"
         h2h_key_b = f"{p_b}__vs__{p_a}"
