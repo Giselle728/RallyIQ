@@ -157,10 +157,42 @@ class TestMatchPredictor(unittest.TestCase):
         self.assertEqual(res_clay["surface"], "Clay")
         self.assertEqual(res_clay["best_of"], 5)
 
-        res_default = predictor.predict("Novak Djokovic", "Rafael Nadal", surface="unknown_surface", best_of="invalid")
-        self.assertEqual(res_default["surface"], "Hard")
-        self.assertEqual(res_default["best_of"], 3)
+    def test_invalid_surface_raises_error(self):
+        with self.assertRaises(ValueError):
+            predictor.predict("Novak Djokovic", "Rafael Nadal", surface="unknown_surface")
 
+    def test_invalid_best_of_raises_error(self):
+        for bad in ("invalid", 7, 0, None):
+            with self.assertRaises(ValueError):
+                predictor.predict("Novak Djokovic", "Rafael Nadal", best_of=bad)
+
+    def test_none_player_name_raises_error(self):
+        with self.assertRaises(ValueError):
+            predictor.predict(None, "Rafael Nadal")
+            
+    def test_surface_is_case_and_whitespace_insensitive(self):
+        res = predictor.predict("Novak Djokovic", "Rafael Nadal", surface="  clay ")
+        self.assertEqual(res["surface"], "Clay")
+        res = predictor.predict("Novak Djokovic", "Rafael Nadal", surface="GRASS")
+        self.assertEqual(res["surface"], "Grass")
+
+    def test_best_of_numeric_string_is_accepted(self):
+        res = predictor.predict("Novak Djokovic", "Rafael Nadal", best_of="5")
+        self.assertEqual(res["best_of"], 5)
+
+    def test_all_valid_surface_and_best_of_combinations(self):
+        for surface in ("Hard", "Clay", "Grass"):
+            for best_of in (3, 5):
+                with self.subTest(surface=surface, best_of=best_of):
+                    res = predictor.predict("Novak Djokovic", "Rafael Nadal", surface=surface, best_of=best_of)
+                    self.assertEqual(res["surface"], surface)
+                    self.assertEqual(res["best_of"], best_of)
+
+    def test_whitespace_only_player_name_raises_error(self):
+        with self.assertRaises(ValueError):
+            predictor.predict("   ", "Rafael Nadal")
+        with self.assertRaises(ValueError):
+            predictor.predict("Novak Djokovic", "\t")
     def test_unloaded_model_resilience(self):
         # Test isolated instance with nonexistent artifact path
         isolated = MatchPredictor(artifact_path="/tmp/nonexistent_model.joblib")
