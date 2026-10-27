@@ -28,6 +28,16 @@ from backend.config import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("rallyiq.ingest")
 
+# Text that means "no name", including values stringified upstream (NaN -> "nan").
+MISSING_NAME_TOKENS = {"", "nan", "none", "null", "n/a", "na"}
+
+
+def _clean_name_series(series: pd.Series) -> pd.Series:
+    """Strip names; missing, blank, or stringified-null values become <NA>."""
+    cleaned = series.astype("string").str.strip()
+    invalid = cleaned.isna() | cleaned.str.lower().isin(MISSING_NAME_TOKENS)
+    return cleaned.mask(invalid)
+
 def validate_matches_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Clean and validate ATP matches metadata."""
     initial_count = len(df)
@@ -41,9 +51,14 @@ def validate_matches_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
     df["Surface"] = df["Surface"].astype(str).str.strip().str.capitalize()
     df.loc[~df["Surface"].isin(valid_surfaces), "Surface"] = "Hard"  # Standardize anomalies
     
-    # Standardize player names
-    df["Player 1"] = df["Player 1"].astype(str).str.strip()
-    df["Player 2"] = df["Player 2"].astype(str).str.strip()
+    # Standardize player names; drop rows where either name is missing/blank
+    df["Player 1"] = _clean_name_series(df["Player 1"])
+    df["Player 2"] = _clean_name_series(df["Player 2"])
+    bad_names = df["Player 1"].isna() | df["Player 2"].isna()
+    missing_names_dropped = int(bad_names.sum())
+    df = df[~bad_names].copy()
+    df["Player 1"] = df["Player 1"].astype(str)
+    df["Player 2"] = df["Player 2"].astype(str)
     
     # Extract Year from Date (format YYYYMMDD or from match_id)
     def parse_year(row):
@@ -75,6 +90,7 @@ def validate_matches_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         "duplicates_removed": dupes,
         "missing_values": missing_stats,
         "surfaces": df["Surface"].value_counts().to_dict(),
+        "missing_names_dropped": missing_names_dropped,
         "year_min": int(df["Year"].min()),
         "year_max": int(df["Year"].max())
     }
@@ -137,6 +153,12 @@ def validate_overview_stats(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
     # Filter to Total set summary for overall match stats
     df = df[df["set"] == "Total"].copy()
     
+    # Drop rows with a missing/blank player name
+    df["player"] = _clean_name_series(df["player"])
+    missing_players = int(df["player"].isna().sum())
+    df = df[df["player"].notna()].copy()
+    df["player"] = df["player"].astype(str)
+    
     # Deduplicate on (match_id, player)
     dupes = int(df.duplicated(subset=["match_id", "player"]).sum())
     df = df.drop_duplicates(subset=["match_id", "player"]).copy()
@@ -154,6 +176,7 @@ def validate_overview_stats(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         "initial_rows": initial_count,
         "clean_rows": len(df),
         "duplicates_removed": dupes,
+        "missing_players_dropped": missing_players,
         "unique_players": int(df["player"].nunique())
     }
     return df, metrics
@@ -175,6 +198,7 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
     logger.info(f"Ingesting {MATCHES_FILE}...")
     matches_raw = pd.read_csv(MATCHES_FILE)
     matches_clean, matches_meta = validate_matches_schema(matches_raw)
+    logger.info(f"Matches: dropped {matches_meta['missing_names_dropped']} rows with missing player names")
     
     # 2. Ingest Points (2020s and 2010s)
     logger.info("Ingesting point-by-point records (2020s & 2010s)...")
@@ -187,6 +211,7 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
     logger.info("Ingesting match performance overview stats...")
     overview_raw = pd.read_csv(OVERVIEW_FILE)
     overview_clean, overview_meta = validate_overview_stats(overview_raw)
+    logger.info(f"Overview: dropped {overview_meta['missing_players_dropped']} rows with missing player names")
     
     # 4. Ingest Serve Direction Stats
     logger.info("Ingesting serve direction stats...")
@@ -253,7 +278,9 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
         "data_cleaning_metrics": {
             "matches_duplicates_removed": matches_meta["duplicates_removed"],
             "points_duplicates_removed": points_meta["duplicates_removed"],
-            "overview_duplicates_removed": overview_meta["duplicates_removed"]
+            "overview_duplicates_removed": overview_meta["duplicates_removed"],
+            "matches_missing_names_dropped": matches_meta["missing_names_dropped"],
+            "overview_missing_players_dropped": overview_meta["missing_players_dropped"]
         },
         "missing_value_statistics": {
             "matches": matches_meta["missing_values"]
