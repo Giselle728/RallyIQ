@@ -357,6 +357,8 @@ class MatchPredictor:
         if not self.is_loaded:
             raise RuntimeError("Match Predictor is not trained or loaded. Run training script first.")
 
+        if player_a is None or player_b is None:
+            raise ValueError("Both player_a and player_b names must be provided.")
         p_a = str(player_a).strip()
         p_b = str(player_b).strip()
         if not p_a or not p_b:
@@ -367,13 +369,14 @@ class MatchPredictor:
         valid_surfaces = {"Hard", "Clay", "Grass"}
         surface_clean = str(surface).strip().capitalize()
         if surface_clean not in valid_surfaces:
-            surface_clean = "Hard"
+            raise ValueError(f"Invalid surface '{surface}'. Must be one of: Clay, Grass, Hard.")
 
         try:
-            best_of_int = int(best_of)
-            best_of_clean = 5 if best_of_int == 5 else 3
+            best_of_clean = int(best_of)
         except (ValueError, TypeError):
-            best_of_clean = 3
+            raise ValueError(f"Invalid best_of '{best_of}'. Must be 3 or 5.")
+        if best_of_clean not in (3, 5):
+            raise ValueError(f"Invalid best_of '{best_of}'. Must be 3 or 5.")
 
         prof_a = self._extract_player_profile(p_a, surface_clean)
         prof_b = self._extract_player_profile(p_b, surface_clean)

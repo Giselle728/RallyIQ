@@ -62,6 +62,12 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("players", data)
         self.assertGreater(len(data["players"]), 0)
 
+    def test_predict_endpoint_rejects_invalid_surface_and_best_of(self):
+        for query in ("surface=Carpet", "best_of=7"):
+            with self.subTest(query=query):
+                res = self.client.get(f"/api/predict/match?player_a=Novak Djokovic&player_b=Rafael Nadal&{query}")
+                self.assertEqual(res.status_code, 400)
+
     def test_player_lab_endpoint(self):
         res = self.client.get("/api/player-lab?player_a=Novak Djokovic&player_b=Rafael Nadal&surface=Overall")
         self.assertEqual(res.status_code, 200)
