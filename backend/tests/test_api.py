@@ -133,6 +133,12 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("community_clusters", data)
         self.assertGreater(len(data["nodes"]), 0)
 
+    def test_rivalry_network_rejects_non_positive_params(self):
+        for query in ("min_meetings=0", "top_n=0", "top_n=-3"):
+            with self.subTest(query=query):
+                res = self.client.get(f"/api/rivalry-network?{query}")
+                self.assertEqual(res.status_code, 422)
+
     def test_storage_health_endpoint(self):
         res = self.client.get("/api/health/mongo")
         self.assertEqual(res.status_code, 200)

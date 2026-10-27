@@ -104,6 +104,23 @@ class RivalryNetwork:
         """
         Generate filtered subgraph JSON for interactive visual representation.
         """
+        # Return a valid empty response when there is no rivalry data
+        if self.G.number_of_nodes() == 0 or self.G.number_of_edges() == 0:
+            return {
+                "nodes": [],
+                "edges": [],
+                "metrics": {
+                    "total_players_in_graph": 0,
+                    "total_rivalries_in_graph": 0,
+                    "louvain_communities_count": 0,
+                    "graph_modularity_score": 0.0,
+                    "min_meetings_threshold": min_meetings
+                },
+                "community_clusters": [],
+                "message": "No rivalry data available."
+            }
+
+        top_n_nodes = max(0, top_n_nodes)
         # Filter nodes by degree / total matches
         nodes_ranked = sorted(
             self.G.nodes(data=True),

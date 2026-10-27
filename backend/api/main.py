@@ -284,8 +284,8 @@ def get_recommendations(
 # =============================================================================
 @app.get("/api/rivalry-network")
 def get_rivalry_network(
-    min_meetings: int = Query(3, description="Minimum meetings for edge inclusion"),
-    top_n: int = Query(35, description="Top N players to display")
+    min_meetings: int = Query(3,  ge=1, description="Minimum meetings for edge inclusion"),
+    top_n: int = Query(35,ge=1, description="Top N players to display")
 ):
     """Return Louvain communities, PageRank centrality, and rivalry graph data."""
     return rivalry_network.get_network_data(min_meetings=min_meetings, top_n_nodes=top_n)
