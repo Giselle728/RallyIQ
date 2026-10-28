@@ -38,6 +38,22 @@ def _clean_name_series(series: pd.Series) -> pd.Series:
     invalid = cleaned.isna() | cleaned.str.lower().isin(MISSING_NAME_TOKENS)
     return cleaned.mask(invalid)
 
+def safe_percentage(part: float, total: float, ndigits: int = 1) -> float:
+    """Return part / total as a percentage, or 0.0 when the ratio is undefined.
+
+    A zero, missing, NaN or infinite denominator (or result) gives 0.0 instead of
+    raising ZeroDivisionError or leaking NaN / inf into reports and JSON output.
+    """
+    try:
+        if total is None or total == 0 or not np.isfinite(total):
+            return 0.0
+        value = part / total * 100
+    except (TypeError, ZeroDivisionError):
+        return 0.0
+    if not np.isfinite(value):
+        return 0.0
+    return round(float(value), ndigits)
+
 def validate_matches_schema(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Clean and validate ATP matches metadata."""
     initial_count = len(df)
@@ -288,7 +304,7 @@ def run_ingestion_and_validation() -> Dict[str, Any]:
         "winner_attribution": {
             "verified_matches": int(matches_clean["verified_winner"].notna().sum()),
             "unverified_matches": int(matches_clean["verified_winner"].isna().sum()),
-            "verified_percentage": round(int(matches_clean["verified_winner"].notna().sum()) / len(matches_clean) * 100, 1)
+            "verified_percentage": safe_percentage(int(matches_clean["verified_winner"].notna().sum()), len(matches_clean))
         }
     }
     

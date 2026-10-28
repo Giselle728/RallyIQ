@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from backend.pipeline.ingest_validate import (
+    safe_percentage,
     validate_matches_schema,
     validate_overview_stats,
 )
@@ -56,6 +57,31 @@ class TestMissingPlayerNames(unittest.TestCase):
         self.assertEqual(sorted(out["player"]), ["Carlos Alcaraz", "Jannik Sinner"])
         self.assertEqual(meta["missing_players_dropped"], 2)
 
+class TestSafePercentage(unittest.TestCase):
+    def test_zero_denominator_returns_zero(self):
+        self.assertEqual(safe_percentage(0, 0), 0.0)
+        self.assertEqual(safe_percentage(5, 0), 0.0)
+
+    def test_empty_dataframe_gives_zero_verified_percentage(self):
+        empty = pd.DataFrame({"verified_winner": pd.Series([], dtype="object")})
+        verified = int(empty["verified_winner"].notna().sum())
+        self.assertEqual(safe_percentage(verified, len(empty)), 0.0)
+
+    def test_normal_ratio_is_rounded_percentage(self):
+        self.assertEqual(safe_percentage(1, 3), 33.3)
+        self.assertEqual(safe_percentage(5568, 7565), 73.6)
+        self.assertEqual(safe_percentage(3, 3), 100.0)
+
+    def test_missing_or_non_finite_denominator_returns_zero(self):
+        for bad in (None, float("nan"), float("inf")):
+            with self.subTest(total=bad):
+                self.assertEqual(safe_percentage(1, bad), 0.0)
+
+    def test_result_is_always_finite(self):
+        for part, total in ((0, 0), (1, 0), (None, 5), (float("nan"), 5)):
+            with self.subTest(part=part, total=total):
+                self.assertTrue(np.isfinite(safe_percentage(part, total)))
+                
 
 if __name__ == "__main__":
     unittest.main()
