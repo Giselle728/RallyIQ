@@ -153,8 +153,8 @@ def get_dashboard_top_players(limit: int = 10):
 
 @app.get("/api/matches")
 def get_matches(
-    limit: int = Query(50, description="Max matches to return"),
-    offset: int = Query(0, description="Pagination offset"),
+    limit: int = Query(50, ge=1, le=500, description="Max matches to return (1-500)"),
+    offset: int = Query(0, ge=0, description="Pagination offset (must be >= 0)"),
     surface: Optional[str] = None,
     player: Optional[str] = None
 ):
