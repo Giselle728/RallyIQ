@@ -20,6 +20,25 @@ from backend.storage.mongo_store import mongo_store
 
 logger = logging.getLogger("rallyiq.ml")
 
+def _validate_probability(value: float, model_name: str) -> float:
+    """Return a valid probability or raise an error."""
+    probability = float(value)
+
+    if not np.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise ValueError(
+            f"{model_name} returned an invalid probability: {value}"
+        )
+
+    return probability
+
+
+def _complementary_percentages(probability: float) -> tuple[float, float]:
+    """Return complementary percentages that total exactly 100.0."""
+    player_a_pct = round(probability * 100.0, 1)
+    player_b_pct = round(100.0 - player_a_pct, 1)
+
+    return player_a_pct, player_b_pct
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 MODEL_ARTIFACT_PATH = os.path.join(MODELS_DIR, "match_predictor.joblib")
@@ -455,14 +474,22 @@ class MatchPredictor:
 
         # Dynamic positive class indexing for Random Forest
         pos_idx_rf = list(self.model.classes_).index(1)
-        probs_rf_fwd = self.model.predict_proba(X_df)[0][pos_idx_rf]
-        probs_rf_rev = self.model.predict_proba(X_df_rev)[0][pos_idx_rf]
+
+        probs_rf_fwd = _validate_probability(
+            self.model.predict_proba(X_df)[0][pos_idx_rf],
+            "Random Forest"
+        )
+        probs_rf_rev = _validate_probability(
+            self.model.predict_proba(X_df_rev)[0][pos_idx_rf],
+            "Random Forest"
+        )
 
         # Symmetrical ensembling: P(A beats B) = 0.5 * (P_fwd + (1 - P_rev))
-        prob_a_rf = float(np.clip(0.5 * (probs_rf_fwd + (1.0 - probs_rf_rev)), 0.01, 0.99))
-        prob_b_rf = 1.0 - prob_a_rf
-        prob_a_pct = round(prob_a_rf * 100, 1)
-        prob_b_pct = round(prob_b_rf * 100, 1)
+        prob_a_rf = float(
+            np.clip(0.5 * (probs_rf_fwd + (1.0 - probs_rf_rev)), 0.01, 0.99)
+        )
+
+        prob_a_pct, prob_b_pct = _complementary_percentages(prob_a_rf)
 
         # Baseline Logistic Regression inference with dynamic class indexing.
         # Never substitute Random Forest probabilities if Logistic Regression is unavailable or fails.
@@ -474,12 +501,21 @@ class MatchPredictor:
                 X_sc = self.scaler.transform(X_df)
                 X_sc_rev = self.scaler.transform(X_df_rev)
                 pos_idx_lr = list(self.baseline_model.classes_).index(1)
-                probs_lr_fwd = self.baseline_model.predict_proba(X_sc)[0][pos_idx_lr]
-                probs_lr_rev = self.baseline_model.predict_proba(X_sc_rev)[0][pos_idx_lr]
-                prob_a_lr = float(np.clip(0.5 * (probs_lr_fwd + (1.0 - probs_lr_rev)), 0.01, 0.99))
-                prob_b_lr = 1.0 - prob_a_lr
-                prob_a_lr_pct = round(prob_a_lr * 100, 1)
-                prob_b_lr_pct = round(prob_b_lr * 100, 1)
+
+                probs_lr_fwd = _validate_probability(
+                    self.baseline_model.predict_proba(X_sc)[0][pos_idx_lr],
+                    "Logistic Regression"
+                )
+                probs_lr_rev = _validate_probability(
+                    self.baseline_model.predict_proba(X_sc_rev)[0][pos_idx_lr],
+                    "Logistic Regression"
+                )
+
+                prob_a_lr = float(
+                    np.clip(0.5 * (probs_lr_fwd + (1.0 - probs_lr_rev)), 0.01, 0.99)
+                )
+
+                prob_a_lr_pct, prob_b_lr_pct = _complementary_percentages(prob_a_lr)
                 baseline_available = True
             except Exception as e:
                 logger.warning(f"Baseline Logistic Regression inference encountered an error: {e}")

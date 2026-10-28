@@ -11,6 +11,32 @@ Verifies all FastAPI REST endpoints across the 5 features:
 import unittest
 from fastapi.testclient import TestClient
 from backend.api.main import app
+from backend.ml.predictor import (
+    _validate_probability,
+    _complementary_percentages,
+)
+
+class TestPredictionProbabilities(unittest.TestCase):
+    def test_valid_probabilities_are_accepted(self):
+        self.assertEqual(_validate_probability(0.65, "Test"), 0.65)
+        self.assertEqual(_validate_probability(0.0, "Test"), 0.0)
+        self.assertEqual(_validate_probability(1.0, "Test"), 1.0)
+
+    def test_invalid_probabilities_are_rejected(self):
+        for value in (-0.01, 1.01, float("nan"), float("inf"), -float("inf")):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    _validate_probability(value, "Test")
+
+    def test_displayed_probabilities_total_100_percent(self):
+        for probability in (0.501, 0.555, 0.654, 0.999, 0.01):
+            with self.subTest(probability=probability):
+                player_a, player_b = _complementary_percentages(probability)
+                self.assertEqual(round(player_a + player_b, 1), 100.0)
+                self.assertGreaterEqual(player_a, 0.0)
+                self.assertLessEqual(player_a, 100.0)
+                self.assertGreaterEqual(player_b, 0.0)
+                self.assertLessEqual(player_b, 100.0)
 
 class TestRallyIQApi(unittest.TestCase):
     @classmethod
