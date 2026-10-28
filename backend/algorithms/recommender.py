@@ -59,39 +59,94 @@ class PlaystyleRecommender:
         with open(self.profiles_path, "r") as f:
             self.player_profiles = json.load(f)
             
-        # Filter players with at least min_matches
+        # Keep players with enough matches and a valid statistics dictionary.
         eligible = []
         matrix_rows = []
-        
+
         for player, data in self.player_profiles.items():
-            tot_matches = data.get("total_matches", 0)
-            overall = data.get("overall", {})
-            if tot_matches >= self.min_matches and overall:
-                row = []
-                for feat in FEATURE_NAMES:
-                    val = float(overall.get(feat, 0.0))
-                    row.append(val)
-                eligible.append(player)
-                matrix_rows.append(row)
-                
+            if not isinstance(data, dict):
+                logger.warning("Skipping malformed profile for %s", player)
+                continue
+
+            try:
+                tot_matches = float(data.get("total_matches", 0))
+            except (TypeError, ValueError):
+                continue
+
+            overall = data.get("overall")
+            if (
+                not np.isfinite(tot_matches)
+                or tot_matches < self.min_matches
+                or not isinstance(overall, dict)
+                or not overall
+            ):
+                continue
+
+            row = []
+            for feat in FEATURE_NAMES:
+                value = overall.get(feat)
+
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    value = np.nan
+
+                if not np.isfinite(value):
+                    value = np.nan
+
+                row.append(value)
+
+            # A profile with no usable numeric statistics cannot be compared.
+            if not np.isfinite(row).any():
+                logger.warning(
+                    "Skipping profile for %s: no usable numeric statistics.",
+                    player,
+                )
+                continue
+
+            eligible.append(player)
+            matrix_rows.append(row)
+
         if not matrix_rows:
             logger.warning("No eligible players found for recommender.")
             return
 
         self.qualified_players = eligible
         self.feature_matrix = np.array(matrix_rows, dtype=np.float64)
-        
-        # Honest missing / zero value imputation with population column median
-        col_medians = np.nanmedian(np.where(self.feature_matrix == 0, np.nan, self.feature_matrix), axis=0)
-        col_medians = np.nan_to_num(col_medians, nan=50.0)
-        
-        for j in range(self.feature_matrix.shape[1]):
-            zero_mask = self.feature_matrix[:, j] == 0
-            self.feature_matrix[zero_mask, j] = col_medians[j]
-            
-        # Z-score normalization across all features
-        self.normalized_matrix = self.scaler.fit_transform(self.feature_matrix)
-        logger.info(f"Recommender fitted with {len(self.qualified_players)} ATP players across {len(FEATURE_NAMES)} features.")
+
+        # Impute genuinely missing values with each feature's median.
+        # Keep real zeros because zero can be a valid statistic.
+        with np.errstate(all="ignore"):
+            col_medians = np.nanmedian(self.feature_matrix, axis=0)
+
+        # If an entire feature is missing, give it a constant neutral value.
+        # StandardScaler will then give this feature zero variance.
+        col_medians = np.where(np.isfinite(col_medians), col_medians, 0.0)
+
+        missing_rows, missing_cols = np.where(
+            ~np.isfinite(self.feature_matrix)
+        )
+        self.feature_matrix[missing_rows, missing_cols] = col_medians[
+            missing_cols
+        ]
+
+        # Guard against invalid data before fitting the scaler.
+        if not np.isfinite(self.feature_matrix).all():
+            logger.error("Non-finite values remain in player feature matrix.")
+            self.qualified_players = []
+            self.feature_matrix = None
+            return
+
+        # Z-score normalization across all features.
+        self.normalized_matrix = self.scaler.fit_transform(
+            self.feature_matrix
+        )
+
+        logger.info(
+            "Recommender fitted with %s ATP players across %s features.",
+            len(self.qualified_players),
+            len(FEATURE_NAMES),
+        )
 
     def classify_archetype(self, features: Dict[str, float]) -> str:
         """Classify player into tactical tennis archetype based on statistical traits."""
@@ -132,7 +187,26 @@ class PlaystyleRecommender:
         target_raw = self.feature_matrix[target_idx]
         
         # Compute Cosine Similarities against all qualified players
-        similarities = cosine_similarity(target_vec, self.normalized_matrix)[0]
+        if (
+            self.normalized_matrix is None
+            or not np.isfinite(target_vec).all()
+            or not np.isfinite(self.normalized_matrix).all()
+        ):
+            return {
+                "error": "Player statistics are incomplete or invalid for similarity calculation.",
+                "available_players": self.qualified_players[:30],
+            }
+
+        similarities = cosine_similarity(
+            target_vec, self.normalized_matrix
+        )[0]
+
+        # A displayed similarity percentage must be finite and between 0 and 100.
+        similarities = np.clip(
+            np.nan_to_num(similarities, nan=0.0, posinf=1.0, neginf=0.0),
+            0.0,
+            1.0,
+        )
         
         # Sort descending, exclude self (target_idx)
         ranked_indices = np.argsort(similarities)[::-1]

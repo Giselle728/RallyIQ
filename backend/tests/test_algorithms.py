@@ -3,7 +3,10 @@ Unit and Integration Tests for RallyIQ Big Data Algorithms:
 1. Similar Playstyle Recommender (Cosine Similarity)
 2. Louvain Community Detection & PageRank Centrality
 """
-
+import json
+import os
+import tempfile
+import numpy as np
 import unittest
 from backend.algorithms.recommender import PlaystyleRecommender
 from backend.algorithms.graph_analytics import RivalryNetwork
@@ -20,6 +23,120 @@ class TestPlaystyleRecommender(unittest.TestCase):
             for r in res["recommendations"]:
                 self.assertLessEqual(r["similarity_score"], 100.0)
                 self.assertGreater(r["similarity_score"], 50.0)
+
+    def test_missing_player_statistics_are_handled_safely(self):
+        profiles = {
+            "Player A": {
+                "total_matches": 10,
+                "overall": {
+                    "ace_rate": 0,
+                    "df_rate": 3.0,
+                    "first_in_pct": 60.0,
+                    "first_won_pct": 70.0,
+                },
+            },
+            "Player B": {
+                "total_matches": 12,
+                "overall": {
+                    "ace_rate": 8.0,
+                    "df_rate": None,
+                    "first_in_pct": 62.0,
+                    "first_won_pct": 72.0,
+                    "second_won_pct": 50.0,
+                    "bp_save_pct": 65.0,
+                    "return_won_pct": 38.0,
+                    "winner_unforced_ratio": 1.2,
+                },
+            },
+            "Player C": {
+                "total_matches": 15,
+                "overall": {
+                    "ace_rate": "NaN",
+                    "df_rate": 4.0,
+                    "first_in_pct": 63.0,
+                    "first_won_pct": 73.0,
+                    "second_won_pct": 51.0,
+                    "bp_save_pct": 66.0,
+                    "return_won_pct": 39.0,
+                    "winner_unforced_ratio": 1.3,
+                },
+            },
+            "Player D": {
+                "total_matches": 20,
+                "overall": {
+                    "ace_rate": None,
+                    "df_rate": "invalid",
+                },
+            },
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            json.dump(profiles, f)
+            path = f.name
+
+        try:
+            rec = PlaystyleRecommender(
+                profiles_path=path, min_matches=3
+            )
+
+            self.assertIn("Player A", rec.qualified_players)
+            self.assertIn("Player B", rec.qualified_players)
+            self.assertIn("Player C", rec.qualified_players)
+            self.assertNotIn("Player D", rec.qualified_players)
+
+            self.assertTrue(np.isfinite(rec.feature_matrix).all())
+            self.assertTrue(np.isfinite(rec.normalized_matrix).all())
+
+            result = rec.find_similar_players("Player A", top_k=2)
+
+            self.assertEqual(result["target_player"], "Player A")
+            self.assertEqual(len(result["recommendations"]), 2)
+
+            for recommendation in result["recommendations"]:
+                score = recommendation["similarity_score"]
+                self.assertTrue(np.isfinite(score))
+                self.assertGreaterEqual(score, 0.0)
+                self.assertLessEqual(score, 100.0)
+
+        finally:
+            os.remove(path)
+    def test_recommender_handles_profiles_with_no_usable_statistics(self):
+        profiles = {
+            "Player A": {
+                "total_matches": 10,
+                "overall": {
+                    "ace_rate": None,
+                    "df_rate": "NaN",
+                },
+            },
+            "Player B": {
+                "total_matches": 12,
+                "overall": {
+                    "ace_rate": "invalid",
+                    "df_rate": None,
+                },
+            },
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            json.dump(profiles, f)
+            path = f.name
+
+        try:
+            rec = PlaystyleRecommender(
+                profiles_path=path, min_matches=3
+            )
+
+            self.assertEqual(rec.qualified_players, [])
+            self.assertIsNone(rec.feature_matrix)
+            self.assertIsNone(rec.normalized_matrix)
+
+        finally:
+            os.remove(path)
 
 class TestRivalryNetwork(unittest.TestCase):
     def test_louvain_communities_and_pagerank(self):
