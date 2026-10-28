@@ -284,6 +284,46 @@ class TestRallyIQApi(unittest.TestCase):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"RallyIQ", res.content)
+        
+class TestMatchesPaginationValidation(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(app)
+
+    def test_invalid_limit_returns_422(self):
+        for value in (-1, 0, 501, 99999):
+            with self.subTest(limit=value):
+                res = self.client.get(f"/api/matches?limit={value}")
+                self.assertEqual(res.status_code, 422)
+
+    def test_negative_offset_returns_422(self):
+        for value in (-1, -5):
+            with self.subTest(offset=value):
+                res = self.client.get(f"/api/matches?offset={value}")
+                self.assertEqual(res.status_code, 422)
+
+    def test_non_integer_pagination_returns_422(self):
+        for query in ("limit=abc", "offset=abc"):
+            with self.subTest(query=query):
+                res = self.client.get(f"/api/matches?{query}")
+                self.assertEqual(res.status_code, 422)
+
+    def test_limit_boundaries_are_accepted(self):
+        for value in (1, 500):
+            with self.subTest(limit=value):
+                res = self.client.get(f"/api/matches?limit={value}")
+                self.assertEqual(res.status_code, 200)
+                data = res.json()
+                self.assertEqual(data["limit"], value)
+                self.assertLessEqual(len(data["matches"]), value)
+
+    def test_default_pagination_unchanged(self):
+        res = self.client.get("/api/matches")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["limit"], 50)
+        self.assertEqual(data["offset"], 0)
+        self.assertLessEqual(len(data["matches"]), 50)
 
 if __name__ == "__main__":
     unittest.main()
