@@ -176,6 +176,37 @@ def get_matches(
         "offset": offset
     }
 
+@app.get("/api/matches/{match_id}")
+def get_match_by_id(match_id: str):
+    """Return a single match by its public match ID."""
+    match_id = match_id.strip()
+
+    if not match_id:
+        raise HTTPException(
+            status_code=400,
+            detail="match_id must not be empty."
+        )
+
+    try:
+        match = mongo_store.db.matches.find_one(
+            {"match_id": match_id},
+            {"_id": 0}
+        )
+    except Exception:
+        logger.exception("Failed to retrieve match with ID %s", match_id)
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve match."
+        )
+
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Match '{match_id}' not found."
+        )
+
+    return {"match": match}
+
 # =============================================================================
 # 2. FEATURE 1: PLAYER INTELLIGENCE LAB
 # =============================================================================
