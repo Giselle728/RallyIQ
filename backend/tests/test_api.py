@@ -9,6 +9,8 @@ Verifies all FastAPI REST endpoints across the 5 features:
 """
 
 import unittest
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 from backend.api.main import app
 from backend.ml.predictor import (
@@ -38,6 +40,7 @@ class TestPredictionProbabilities(unittest.TestCase):
                 self.assertGreaterEqual(player_b, 0.0)
                 self.assertLessEqual(player_b, 100.0)
 
+
 class TestRallyIQApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -60,26 +63,75 @@ class TestRallyIQApi(unittest.TestCase):
         data1 = res1.json()
         self.assertIn("total_matches", data1)
         self.assertIn("total_points", data1)
-        
+
         # 2. /api/dashboard/surfaces
         res2 = self.client.get("/api/dashboard/surfaces")
         self.assertEqual(res2.status_code, 200)
         data2 = res2.json()
         self.assertIn("surfaces", data2)
         self.assertIn("breakdown", data2)
-        
+
         # 3. /api/dashboard/top-players
         res3 = self.client.get("/api/dashboard/top-players?limit=5")
         self.assertEqual(res3.status_code, 200)
         data3 = res3.json()
         self.assertIn("top_players", data3)
         self.assertEqual(len(data3["top_players"]), 5)
-        
+
         # 4. /api/matches
         res4 = self.client.get("/api/matches?limit=10&offset=0")
         self.assertEqual(res4.status_code, 200)
         data4 = res4.json()
         self.assertIn("matches", data4)
+
+    # Issue #20: invalid and nonexistent match IDs
+
+    @patch("backend.api.main.mongo_store.db")
+    def test_get_match_by_id_success(self, mock_db):
+        match_id = "20240101-M-Test-R1-Player_A-Player_B"
+        mock_db.matches.find_one.return_value = {
+            "match_id": match_id,
+            "Player 1": "Player A",
+            "Player 2": "Player B",
+        }
+
+        response = self.client.get(f"/api/matches/{match_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["match"]["match_id"], match_id)
+        mock_db.matches.find_one.assert_called_once_with(
+            {"match_id": match_id}, {"_id": 0}
+        )
+
+    @patch("backend.api.main.mongo_store.db")
+    def test_get_match_by_id_not_found(self, mock_db):
+        mock_db.matches.find_one.return_value = None
+
+        response = self.client.get("/api/matches/nonexistent-match-id")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["detail"].lower())
+
+    @patch("backend.api.main.mongo_store.db")
+    def test_get_match_by_id_database_error(self, mock_db):
+        mock_db.matches.find_one.side_effect = Exception(
+            "database unavailable"
+        )
+
+        response = self.client.get("/api/matches/test-match-id")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json()["detail"], "Unable to retrieve match."
+        )
+
+    def test_get_match_by_id_empty_id(self):
+        response = self.client.get("/api/matches/%20%20%20")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"], "match_id must not be empty."
+        )
 
     def test_players_endpoint(self):
         res = self.client.get("/api/players?min_matches=5")
@@ -120,7 +172,7 @@ class TestRallyIQApi(unittest.TestCase):
         self.assertIn("recommendations", data)
         self.assertEqual(len(data["recommendations"]), 3)
         self.assertIn("archetype", data["recommendations"][0])
-    
+
     def test_recommender_rejects_invalid_top_k(self):
         for bad in (0, -3, 99999):
             res = self.client.get(
@@ -324,6 +376,7 @@ class TestMatchesPaginationValidation(unittest.TestCase):
         self.assertEqual(data["limit"], 50)
         self.assertEqual(data["offset"], 0)
         self.assertLessEqual(len(data["matches"]), 50)
+
 
 if __name__ == "__main__":
     unittest.main()
